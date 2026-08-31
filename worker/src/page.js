@@ -98,6 +98,7 @@ h2{margin:0;font-family:var(--display);font-variation-settings:"wdth" 100;font-w
 .rank{grid-area:rank;font-family:var(--display);font-variation-settings:"wdth" 100;font-weight:700;font-size:13px;color:var(--ink-3);font-variant-numeric:tabular-nums;text-align:right}
 .row.lead .rank{color:var(--ink)}
 .row.me{background:var(--surface-2)}
+.rank.done{color:var(--pine);font-size:15px}
 .you{display:inline-block;margin-left:6px;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);border:1px solid var(--line);border-radius:2px;padding:0 4px;vertical-align:1px}
 .ro-note{margin:0;font-size:13.5px;color:var(--ink-2)}
 .mark{grid-area:mark;width:8px;height:26px;border-radius:1px;align-self:center}
@@ -171,7 +172,7 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);font-fa
       <span class="blazemark" aria-hidden="true"></span>
       <div>
         <h1>Hundred Mile September</h1>
-        <p class="tag" id="tag">100 miles each, everybody watching. Log a run and the board updates for everyone.</p>
+        <p class="tag" id="tag">Everyone runs their own 100. Same month, same goal, one board.</p>
       </div>
     </div>
     <div class="clock"><div class="clock-num" id="clocknum">&nbsp;</div><div class="clock-lbl" id="clocklbl"></div></div>
@@ -184,7 +185,7 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);font-fa
   <div class="cols">
     <div class="main">
       <section>
-        <div class="sec-head"><h2>Leaderboard</h2><span class="sec-note" id="boardnote"></span></div>
+        <div class="sec-head"><h2>Everyone</h2><span class="sec-note" id="boardnote"></span></div>
         <div id="boardwrap"><div class="boot">loading the board...</div></div>
       </section>
       <section id="feedsec">
@@ -300,28 +301,48 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);font-fa
     var groupTotal = S.entries.reduce(function(s, e){ return s + e.miles; }, 0);
     var todayTotal = S.entries.reduce(function(s, e){ return s + (e.date === today ? e.miles : 0); }, 0);
 
-    $('tag').textContent = c.goal + ' ' + c.unitLong + ' each, ' + c.days +
-      ' days, everybody watching. Log a run and the board updates for everyone.';
+    $('tag').textContent = 'Everyone runs their own ' + c.goal + '. Same ' + c.days +
+      ' days, same goal, one board.';
     $('clocknum').textContent = (el === 0) ? c.days : left;
     $('clocklbl').textContent = (el === 0) ? 'days to go' : 'days left';
 
+    var me = ls('hms.me') || '';
+    var mine = null;
+    rows.forEach(function(r){ if (keyOf(r.name) === keyOf(me)) mine = r; });
+    var onPaceCount = 0, finished = 0;
+    rows.forEach(function(r){
+      if (r.total >= onPace()) onPaceCount++;
+      if (r.total >= c.goal) finished++;
+    });
+
     $('stats').innerHTML =
-      stat('Group ' + c.unitLong, num(groupTotal), rows.length ? 'of ' + (rows.length * c.goal) + ' ' + c.unit + ' collective goal' : 'nobody logged yet') +
-      stat('Logged today', num(todayTotal), shortDate(today) + (el >= 1 && el <= c.days ? ' · day ' + el + ' of ' + c.days : ' · outside the window')) +
-      stat('On-pace mark', el === 0 ? '—' : num(onPace()), el === 0 ? 'starts ' + shortDate(c.start) : c.unitLong + ' each by today') +
-      stat('In the challenge', String(rows.length), rows.length === 1 ? 'runner' : 'runners');
+      stat('Your ' + c.unitLong,
+        mine ? num(mine.total) : '—',
+        mine ? (mine.total >= c.goal ? 'done — all ' + c.goal + ' in'
+                                     : num(c.goal - mine.total) + ' ' + c.unit + ' to go')
+             : 'log a run to start yours') +
+      stat('On-pace mark',
+        el === 0 ? '—' : num(onPace()),
+        el === 0 ? 'starts ' + shortDate(c.start) : c.unitLong + ' each by today') +
+      stat('On pace',
+        (el === 0 || !rows.length) ? '—' : onPaceCount + ' of ' + rows.length,
+        el === 0 ? 'nobody behind yet'
+                 : (finished ? finished + ' already finished' : 'holding their own ' + c.goal)) +
+      stat('Miles logged', num(groupTotal),
+        rows.length ? num(todayTotal) + ' ' + c.unit + ' of it today, across ' + rows.length +
+          (rows.length === 1 ? ' of us' : ' of us') : 'nobody logged yet');
 
     $('boardnote').textContent = el === 0 ? 'starts ' + shortDate(c.start) : 'blaze line = on-pace';
     $('boardwrap').innerHTML = rows.length
       ? '<ul class="board">' + rows.map(rowHTML).join('') + '</ul>'
-      : '<div class="board"><div class="empty"><b>No runners yet</b>Log the first miles and your name starts the board.</div></div>';
+      : '<div class="board"><div class="empty"><b>Nobody has started</b>Add your name and your ' + c.goal + ' starts here.</div></div>';
 
     paintFeed();
     fillWho(rows);
 
     $('foot').innerHTML =
       esc(c.unitLong.charAt(0).toUpperCase() + c.unitLong.slice(1) + ' run between ' + shortDate(c.start) +
-        ' and ' + shortDate(c.end) + ' ' + String(c.start).slice(0, 4) + ' · ' + c.goal + ' per person') +
+        ' and ' + shortDate(c.end) + ' ' + String(c.start).slice(0, 4) + ' · everyone runs their own ' + c.goal) +
       '<br>Anyone with this link can log miles' + (c.locked ? ', with the group password.' : '.') +
       ' The board refreshes on its own every 30 seconds.';
   }
@@ -350,8 +371,10 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);font-fa
     var right = r.total >= c.goal ? 'finished' :
       (left > 0 ? 'needs ' + num((c.goal - r.total) / left) + '/day' : num(c.goal - r.total) + ' ' + c.unit + ' short');
 
+    var done = r.total >= c.goal;
     return '<li class="row' + (i === 0 && r.total > 0 ? ' lead' : '') + (keyOf(r.name) === keyOf(me) ? ' me' : '') + '">' +
-      '<span class="rank">' + (i + 1) + '</span>' +
+      '<span class="rank' + (done ? ' done' : '') + '"' + (done ? ' title="finished"' : '') + '>' +
+        (done ? '\u2713' : (i + 1)) + '</span>' +
       '<span class="mark" style="background:' + esc(r.color) + '"></span>' +
       '<div class="who"><span class="name">' + esc(r.name) +
         (keyOf(r.name) === keyOf(me) ? '<span class="you">you</span>' : '') +
