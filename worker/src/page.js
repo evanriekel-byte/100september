@@ -172,7 +172,7 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);font-fa
       <span class="blazemark" aria-hidden="true"></span>
       <div>
         <h1>Hundred Mile September</h1>
-        <p class="tag" id="tag">Everyone runs their own 100. Same month, same goal, one board.</p>
+        <p class="tag" id="tag">Everyone's own 100. Same month, same goal, one board.</p>
       </div>
     </div>
     <div class="clock"><div class="clock-num" id="clocknum">&nbsp;</div><div class="clock-lbl" id="clocklbl"></div></div>
@@ -301,7 +301,7 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);font-fa
     var groupTotal = S.entries.reduce(function(s, e){ return s + e.miles; }, 0);
     var todayTotal = S.entries.reduce(function(s, e){ return s + (e.date === today ? e.miles : 0); }, 0);
 
-    $('tag').textContent = 'Everyone runs their own ' + c.goal + '. Same ' + c.days +
+    $('tag').textContent = "Everyone's own " + c.goal + '. Same ' + c.days +
       ' days, same goal, one board.';
     $('clocknum').textContent = (el === 0) ? c.days : left;
     $('clocklbl').textContent = (el === 0) ? 'days to go' : 'days left';
@@ -320,7 +320,7 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);font-fa
         mine ? num(mine.total) : '—',
         mine ? (mine.total >= c.goal ? 'done — all ' + c.goal + ' in'
                                      : num(c.goal - mine.total) + ' ' + c.unit + ' to go')
-             : 'log a run to start yours') +
+             : 'add some to start yours') +
       stat('On-pace mark',
         el === 0 ? '—' : num(onPace()),
         el === 0 ? 'starts ' + shortDate(c.start) : c.unitLong + ' each by today') +
@@ -341,8 +341,8 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);font-fa
     fillWho(rows);
 
     $('foot').innerHTML =
-      esc(c.unitLong.charAt(0).toUpperCase() + c.unitLong.slice(1) + ' run between ' + shortDate(c.start) +
-        ' and ' + shortDate(c.end) + ' ' + String(c.start).slice(0, 4) + ' · everyone runs their own ' + c.goal) +
+      esc(c.unitLong.charAt(0).toUpperCase() + c.unitLong.slice(1) + ' logged between ' + shortDate(c.start) +
+        ' and ' + shortDate(c.end) + ' ' + String(c.start).slice(0, 4) + " · everyone's own " + c.goal) +
       '<br>Anyone with this link can log miles' + (c.locked ? ', with the group password.' : '.') +
       ' The board refreshes on its own every 30 seconds.';
   }
@@ -366,7 +366,7 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);font-fa
     else chip = '<span class="chip behind">' + num(diff) + ' behind</span>';
 
     var bits = [];
-    if (r.activeDays) bits.push(r.activeDays + (r.activeDays === 1 ? ' day out' : ' days out'));
+    if (r.activeDays) bits.push(r.activeDays + (r.activeDays === 1 ? ' day logged' : ' days logged'));
     if (r.avg) bits.push(num(r.avg) + '/day avg');
     var right = r.total >= c.goal ? 'finished' :
       (left > 0 ? 'needs ' + num((c.goal - r.total) / left) + '/day' : num(c.goal - r.total) + ' ' + c.unit + ' short');
@@ -385,7 +385,7 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);font-fa
         '<i class="tick" style="left:25%"></i><i class="tick" style="left:50%"></i><i class="tick" style="left:75%"></i>' +
         (el > 0 && el < c.days ? '<i class="pace" style="left:' + pacePct.toFixed(2) + '%"></i>' : '') +
       '</div>' +
-      '<div class="barmeta"><span>' + (r.last ? 'last run ' + esc(shortDate(r.last)) : 'nothing logged') + '</span>' +
+      '<div class="barmeta"><span>' + (r.last ? 'last on ' + esc(shortDate(r.last)) : 'nothing logged') + '</span>' +
         '<span>' + esc(right) + '</span></div></div>' +
       '<div class="num"><span class="miles">' + num(r.total) + '<small>' + esc(c.unit) + '</small></span><br>' + chip + '</div>' +
     '</li>';
@@ -405,7 +405,7 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);font-fa
       ? '<ul class="feed">' + shown.map(function(e){
           return '<li class="ev">' +
             '<span class="dot" style="background:' + esc(colors[keyOf(e.who)] || '#7C8A85') + '"></span>' +
-            '<span class="ev-txt"><b>' + esc(e.who) + '</b> ran ' + num(e.miles) + ' ' + esc(S.config.unit) +
+            '<span class="ev-txt"><b>' + esc(e.who) + '</b> ' + num(e.miles) + ' ' + esc(S.config.unit) +
               (e.note ? ' <span class="note">— ' + esc(e.note) + '</span>' : '') + '</span>' +
             '<span class="ev-when">' + esc(shortDate(e.date)) + '</span>' +
             '<button class="rm" type="button" data-id="' + esc(e.id) + '" aria-label="Remove this entry">×</button>' +
@@ -413,7 +413,7 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);font-fa
         }).join('') + '</ul>' +
         (list.length > CAP ? '<button class="more" type="button" id="morebtn">' +
           (feedAll ? 'Show the latest ' + CAP + ' only' : 'Show all ' + list.length + ' entries') + '</button>' : '')
-      : '<div class="empty"><b>Nothing logged yet</b>Runs show up here the moment somebody adds one.</div>';
+      : '<div class="empty"><b>Nothing logged yet</b>Entries show up here the moment somebody adds one.</div>';
   }
 
   function fillWho(rows){

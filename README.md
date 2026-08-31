@@ -1,6 +1,7 @@
 # Hundred Mile September
 
-A shared mile tracker for a 100-miles-in-September challenge. One page, one link,
+A shared mile tracker for a 100-miles-in-September challenge — run it, walk it,
+the board does not care. One page, one link,
 no accounts, no server to keep alive.
 
 **Live board:** https://claude.ai/code/artifact/8746d207-3c7c-455b-95a0-5ecd8c84c789
@@ -24,12 +25,17 @@ access sees a live, read-only board and the page tells them so.
 
 ## What's on the board
 
-- **Leaderboard** — each person's total against 100, with quarter ticks on the bar
-  and an orange *blaze line* marking where you'd be if you were exactly on pace.
+- **Everyone** — each person's total against their own 100, with quarter ticks on
+  the bar and an orange *blaze line* marking where you'd be if you were exactly on
+  pace. Finishing your 100 swaps your position number for a check.
 - **Pace chips** — `+12.4 ahead` / `-8.1 behind` against today's on-pace mark, plus
   the miles per day each person needs to finish.
-- **Stat strip** — group miles, miles logged today, today's on-pace mark, headcount.
-- **Activity feed** — every run, newest first, with a two-click remove for typos.
+- **Stat strip** — your own total first, then today's on-pace mark, how many people
+  are holding their 100, and the group's combined miles as a plain fact.
+
+The 100 is a per-person commitment, not a shared pot: nothing in the board adds
+everyone's goals together.
+- **Activity feed** — every entry, newest first, with a two-click remove for typos.
 
 Adding a name to the "Who" dropdown is how you join; each person picks up a blaze
 color that follows them through the bar and the feed.
@@ -75,12 +81,12 @@ npm run dev
 |---|---|---|
 | `GET /` | | the board |
 | `GET /api/state` | | `{config, people, entries}` |
-| `POST /api/entries` | `{who, date, miles, note, key}` | log a run |
+| `POST /api/entries` | `{who, date, miles, note, key}` | log miles |
 | `POST /api/entries/delete` | `{id, key}` | remove one |
 | `GET /api/export.csv` | | the whole log as CSV |
 | `GET /healthz` | | `ok` |
 
-Names are matched case-insensitively, so `evan` and `Evan` are one runner. Miles,
+Names are matched case-insensitively, so `evan` and `Evan` are one person. Miles,
 dates and name length are validated server-side, and every value is escaped on the
 way into the page. Removing someone's last entry drops them from the board.
 
