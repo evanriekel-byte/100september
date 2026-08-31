@@ -1,0 +1,17 @@
+CREATE TABLE IF NOT EXISTS people (
+  name    TEXT PRIMARY KEY COLLATE NOCASE,
+  color   TEXT NOT NULL,
+  created INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS entries (
+  id    TEXT PRIMARY KEY,
+  who   TEXT NOT NULL COLLATE NOCASE,
+  date  TEXT NOT NULL,
+  miles REAL NOT NULL,
+  note  TEXT NOT NULL DEFAULT '',
+  ts    INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_entries_date ON entries(date DESC, ts DESC);
+CREATE INDEX IF NOT EXISTS idx_entries_who  ON entries(who);
