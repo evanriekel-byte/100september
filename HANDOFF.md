@@ -30,6 +30,7 @@ forgotten it gets rotated, not recovered.
 worker/
   wrangler.toml     config + the challenge itself (see "Change the rules")
   schema.sql        four tables; safe to re-run, everything is IF NOT EXISTS
+  migrate.sql       one-off ALTERs for a board older than a schema change
   src/index.js      router, JSON API, validation, auth, chat, images, CSV export
   src/page.js       the ENTIRE client — markup, CSS and JS as one exported string
   src/assets.js     GENERATED: icon SVGs, base64 PNGs, web manifest
@@ -150,12 +151,42 @@ it or it fails silently.** `img-src` already covers `blob:` for exactly this
 reason: the composer reads a picked photo through `URL.createObjectURL` before
 the canvas downscales it.
 
+**Attribution** — every entry records `logged_by` (the name the device had
+claimed before this write) and `device` (a random per-browser id in
+`hms.dev`). The feed and your history show a quiet `by Coco` tag whenever
+`logged_by` differs from `who`, so logging miles for somebody else is visible
+rather than anonymous. Both fields come from the browser and are exactly as
+trustworthy as the rest of the honor system — see the limits below. The `device`
+id is the sturdier half: it survives someone editing the name, so several
+entries typed on one phone still read as one phone.
+
+To ask the board who typed what:
+
+```sh
+npx wrangler d1 execute DB --remote --command \
+  "SELECT COALESCE(device,'(before attribution)') AS device, COUNT(*) AS n, \
+          GROUP_CONCAT(who) AS logged_for, COALESCE(logged_by,'?') AS typed_by \
+   FROM entries GROUP BY device, logged_by ORDER BY n DESC"
+```
+
+**Migrating a board that predates attribution** — `npm run db:migrate` adds the
+two columns to an existing `entries` table. **Run it before deploying the code**:
+`readState` selects both columns, so an un-migrated database makes the whole
+board a 500. Run it once; a second run stops with `duplicate column name:
+logged_by`, which is SQLite saying it is already done. A board created fresh
+from `schema.sql` already has them and needs nothing.
+
 **Rotate the password** — `npx wrangler secret put PASSPHRASE`. Everyone is asked
 once more the next time they log miles. Removing the secret entirely makes writes
 open to anyone with the link.
 
 **Back up** — `curl https://septembermiles.com/api/export.csv > miles.csv`. Worth
-doing once a week during the challenge; it is the whole log in four columns. A
+doing once a week during the challenge; it is the whole log in six columns —
+`date,who,miles,note,logged_by,logged_at`. `logged_at` is the wall-clock moment
+the row was written, which the board itself never shows and which is often the
+fastest way to see that several entries were typed in one sitting. A blank
+`logged_by` means the row predates attribution, so it is genuinely unknown
+rather than assumed to be `who`. A
 name or note starting with `=`, `+`, `-` or `@` is written with a leading
 apostrophe, because that file exists to be opened in a spreadsheet and those are
 the characters Excel and Sheets read as a formula rather than as text.
@@ -184,7 +215,7 @@ readable message.
 |---|---|---|---|
 | GET | `/` | | the board |
 | GET | `/api/state` | | `{config, people, entries}` — everything the board renders from |
-| POST | `/api/entries` | `{who, date, miles, note, key}` | 401 on bad `key`, 400 on bad input |
+| POST | `/api/entries` | `{who, date, miles, note, key, by, dev}` | 401 on bad `key`, 400 on bad input |
 | POST | `/api/entries/delete` | `{id, key}` | |
 | GET | `/api/chat` | | `{messages}` — the last 200, oldest first |
 | POST | `/api/chat` | `{who, body, image, w, h, key}` | `image` is a data URL, or omitted |
@@ -207,7 +238,7 @@ Plus `/favicon.svg`, `/icon.svg`, `/apple-touch-icon.png`, `/icon-192.png`,
 ```sql
 people   (name TEXT PRIMARY KEY COLLATE NOCASE, color TEXT, created INTEGER)
 entries  (id TEXT PRIMARY KEY, who TEXT COLLATE NOCASE, date TEXT, miles REAL,
-          note TEXT, ts INTEGER)
+          note TEXT, ts INTEGER, logged_by TEXT, device TEXT)
 messages (id TEXT PRIMARY KEY, who TEXT COLLATE NOCASE, body TEXT, img TEXT,
           w INTEGER, h INTEGER, ts INTEGER)
 images   (id TEXT PRIMARY KEY, mime TEXT, bytes BLOB, ts INTEGER)
@@ -227,6 +258,9 @@ Rules enforced server-side in `addEntry`:
   so a tab left open overnight does not stay a day behind.
 - A name new to the board joins `people` and takes the next color in `COLORS`
   (`joinPerson`, shared with chat — posting a message is enough to join).
+- `logged_by` is trimmed and capped at 24 chars like a name; `device` must match
+  `/^[a-z0-9]{1,16}$/` or it is stored as null. Neither is ever invented: a row
+  written before attribution keeps both as null and is displayed unmarked.
 - Deleting someone's last entry prunes them from `people` **only if they have no
   messages either**. If they come back they may be assigned a different color.
 
@@ -242,7 +276,8 @@ And in `addMessage`:
 
 Client state that is not on the server: `localStorage` holds `hms.me` (which name is
 yours, for the "you" tag, the form default, which chat bubbles are yours, and who the
-chat composer posts as),
+chat composer posts as), `hms.dev` (this browser's random id, sent with every entry
+so the board can group entries by the device that typed them),
 `hms.key` (the password), and `hms.seen` (the newest message timestamp you have
 looked at, which drives the dot on the Social tab). All three are per-device
 conveniences; losing them costs one dropdown selection and one password entry.
@@ -334,7 +369,16 @@ Worth re-running by hand after any change to `page.js` or `index.js`.
 
 ## Known limits
 
-- **Honor-system identity.** Anyone can log as anyone. See OVERVIEW for why.
+- **Honor-system identity.** Anyone can log as anyone. Attribution makes it
+  *visible* — the feed says `by Coco` when Coco logs Julia's miles — but it does
+  not prevent it, and it is not evidence. `logged_by` and `device` are sent by
+  the browser, so anyone willing to open devtools can send whatever they like.
+  It catches the mis-tap and the casual, which is what actually happens in a
+  family group. **Per-person PINs remain the only real fix.** See OVERVIEW.
+- **Attribution starts from the day it shipped.** Entries logged before the
+  migration have no `logged_by` and never will; there is nothing in the old rows
+  to recover it from. The worker has never recorded an IP or a user-agent, and
+  `[observability]` is off, so nothing else retained it either.
 - **One shared password, no rate limiting.** Guesses are unlimited. Adequate for a
   private link shared with friends; not adequate if the URL goes public.
 - **No editing an entry** — delete it and add it again.

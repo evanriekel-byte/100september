@@ -13,6 +13,8 @@ const MAX_MSG = 500;
 const MAX_IMAGE_BYTES = 1_000_000;
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const CHAT_PAGE = 200;
+// A browser-generated id, base36, used only to group entries by device.
+const DEVICE_RE = /^[a-z0-9]{1,16}$/;
 
 export default {
   async fetch(request, env) {
@@ -161,7 +163,7 @@ function daysBetween(start, end) {
 async function readState(env) {
   const [people, entries] = await Promise.all([
     env.DB.prepare('SELECT name, color FROM people ORDER BY created ASC').all(),
-    env.DB.prepare('SELECT id, who, date, miles, note, ts FROM entries ORDER BY date DESC, ts DESC').all(),
+    env.DB.prepare('SELECT id, who, date, miles, note, ts, logged_by, device FROM entries ORDER BY date DESC, ts DESC').all(),
   ]);
   return {
     config: config(env),
@@ -205,9 +207,20 @@ async function addEntry(request, env) {
 
   const name = await joinPerson(who, env, now);
 
+  // Who was at the keyboard, as opposed to who the miles are for. Both come
+  // from the browser and are as trustworthy as the rest of the honor system --
+  // the point is that logging for somebody else stops being invisible. The
+  // device id is the sturdier half: it survives someone editing the name, so
+  // four entries typed on one phone still read as four entries from one phone.
+  const by = String(body.by || '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME);
+  const rawDev = String(body.dev || '');
+  const dev = DEVICE_RE.test(rawDev) ? rawDev : null;
+
   const id = now.toString(36) + Math.random().toString(36).slice(2, 8);
-  await env.DB.prepare('INSERT INTO entries (id, who, date, miles, note, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
-    .bind(id, name, date, Math.round(miles * 100) / 100, note, now)
+  await env.DB.prepare(
+    'INSERT INTO entries (id, who, date, miles, note, ts, logged_by, device) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)'
+  )
+    .bind(id, name, date, Math.round(miles * 100) / 100, note, now, by || null, dev)
     .run();
 
   return json({ ok: true, id });
@@ -414,9 +427,22 @@ function json(data, status = 200) {
 }
 
 async function exportCsv(env) {
-  const rows = await env.DB.prepare('SELECT date, who, miles, note FROM entries ORDER BY date ASC, ts ASC').all();
-  const csv = ['date,who,miles,note']
-    .concat((rows.results || []).map((r) => [r.date, csvCell(r.who), r.miles, csvCell(r.note)].join(',')))
+  const rows = await env.DB
+    .prepare('SELECT date, who, miles, note, ts, logged_by FROM entries ORDER BY date ASC, ts ASC')
+    .all();
+  const csv = ['date,who,miles,note,logged_by,logged_at']
+    .concat(
+      (rows.results || []).map((r) =>
+        [
+          r.date,
+          csvCell(r.who),
+          r.miles,
+          csvCell(r.note),
+          csvCell(r.logged_by || ''),   // blank = logged before attribution existed, genuinely unknown
+          new Date(r.ts).toISOString(),
+        ].join(',')
+      )
+    )
     .join('\n');
   return new Response(csv + '\n', {
     headers: {

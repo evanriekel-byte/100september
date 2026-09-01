@@ -236,6 +236,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--brand);outline-o
 .ev-txt b{font-weight:600}
 .ev-txt .note{color:var(--ink-3);font-style:italic}
 .ev-when{flex:none;font-family:var(--mono);font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.by{flex:none;max-width:11ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;color:var(--ink-2);border:1px solid var(--line);border-radius:2px;padding:1px 5px}
+.hnote .by{margin-left:7px;display:inline-block;vertical-align:1px}
 .rm{flex:none;font-family:var(--mono);font-size:11px;color:var(--ink-3);background:none;border:1px solid transparent;border-radius:2px;padding:2px 5px;cursor:pointer}
 .rm:hover{color:var(--blaze);border-color:var(--line)}
 .rm[data-arm="1"]{color:var(--blaze);border-color:var(--blaze)}
@@ -486,6 +488,23 @@ The whole log is also available as a plain file at <a href="/api/export.csv">/ap
     return null;
   }
   function me(){ return ls('hms.me') || ''; }
+  /* A random id for this browser, made once and kept. It says nothing about
+     who you are -- it only lets the board notice that several entries were
+     typed on the same device. */
+  function devId(){
+    var d = ls('hms.dev');
+    if (!d){ d = Math.random().toString(36).slice(2, 10); ls('hms.dev', d); }
+    return d;
+  }
+  /* Who did the typing, when that is not who the miles are for. */
+  function loggedBy(e){
+    var by = tidy(e.logged_by);
+    return (by && keyOf(by) !== keyOf(e.who)) ? by : '';
+  }
+  function byTag(e){
+    var by = loggedBy(e);
+    return by ? '<span class="by" title="' + esc('Logged by ' + by) + '">by ' + esc(by) + '</span>' : '';
+  }
   function initial(n){ return String(n || '?').trim().charAt(0).toUpperCase() || '?'; }
   function colorOf(n){
     var c = '#7C8A85';
@@ -714,6 +733,7 @@ The whole log is also available as a plain file at <a href="/api/export.csv">/ap
             '<span class="dot" style="background:' + esc(colorOf(e.who)) + '"></span>' +
             '<span class="ev-txt"><b>' + esc(e.who) + '</b> ' + num(e.miles) + ' ' + esc(S.config.unit) +
               (e.note ? ' <span class="note">— ' + esc(e.note) + '</span>' : '') + '</span>' +
+            byTag(e) +
             '<span class="ev-when">' + esc(shortDate(e.date)) + '</span>' +
             '<button class="rm" type="button" data-kind="entry" data-id="' + esc(e.id) + '" aria-label="Remove this entry">×</button>' +
           '</li>';
@@ -777,7 +797,7 @@ The whole log is also available as a plain file at <a href="/api/export.csv">/ap
           return '<li class="hrow">' +
             '<span class="hdate">' + esc(shortDate(e.date)) + '</span>' +
             '<span class="hmiles">' + num(e.miles) + '<small>' + esc(c.unit) + '</small></span>' +
-            '<span class="hnote">' + (e.note ? esc(e.note) : '') + '</span>' +
+            '<span class="hnote">' + (e.note ? esc(e.note) : '') + byTag(e) + '</span>' +
             '<button class="rm" type="button" data-kind="entry" data-id="' + esc(e.id) + '" aria-label="Remove this activity">×</button>' +
           '</li>';
         }).join('') + '</ul>'
@@ -1125,7 +1145,8 @@ The whole log is also available as a plain file at <a href="/api/export.csv">/ap
     var key = $('pw').value || ls('hms.key') || '';
     setBusy(true); say('Saving...');
 
-    post('/api/entries', { who: who, date: date, miles: miles, note: $('note').value, key: key })
+    post('/api/entries', { who: who, date: date, miles: miles, note: $('note').value, key: key,
+                           by: me() || who, dev: devId() })
       .then(function(){
         if (key) ls('hms.key', key);
         ls('hms.me', who);

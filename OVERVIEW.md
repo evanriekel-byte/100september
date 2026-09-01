@@ -90,6 +90,12 @@ your own commitment is the win condition, not out-running anyone.
 **Activity** — every entry, newest first, colored by person, with a two-click remove
 for typos. Capped at 24 with a "show all" toggle, and filterable to one person.
 
+An entry logged for somebody else carries a quiet **`by Coco`** tag. Most entries
+have none, because most people log their own miles; the tag only appears when the
+device doing the typing had claimed a different name. Logging for a partner who
+is out on a run is a normal, friendly thing to do — the tag is not an accusation,
+it just means the feed no longer hides who did it.
+
 You can backdate as far as the start — logging the week's runs on a Sunday is the
 normal way to use it — but not forward. Every number here weighs a total against
 the days that have actually passed, so a month logged on day one would read as a
@@ -120,7 +126,19 @@ or on purpose.
 
 That is a deliberate trade. Per-person logins would add friction for every single
 participant to defend against a problem that does not exist in a group of friends,
-and the activity feed makes anything strange obvious immediately. The shared
+and the activity feed makes anything strange obvious immediately — which it only
+genuinely does since entries started carrying **who typed them**. Before that the
+feed showed the name an entry was *for* and nothing about where it came from, so
+an entry logged under the wrong name was not just possible but untraceable. Now
+each one records the name the device had already claimed, plus a random id for the
+browser itself, and the board tags anything where those disagree.
+
+That is attribution, not authentication. Both values are sent by the browser, so
+anyone determined can send whatever they like — the device id is only the sturdier
+half, in that it survives someone editing the name and still groups several entries
+typed on one phone. It catches the mis-tap and the casual, which is what actually
+happens here. **Per-person PINs are still the only real fix**, and still the one
+this project keeps deciding a group of friends does not need. The shared
 password is not there to tell people apart — it only stops a stranger who stumbles
 on the URL from writing to the board. **Reading is open to anyone with the link**, and
 that now includes the chat and any photo posted to it.
