@@ -1,6 +1,9 @@
 import { PAGE } from './page.js';
+import { ICON_SVG, FAVICON_SVG, MANIFEST, PNGS } from './assets.js';
 
-const COLORS = ['#2F8F72','#E0722F','#4478B8','#9A5490','#7E9B32','#C0503E','#1F94A0','#C09A20'];
+// One blaze colour per person, assigned on join. No orange in here: orange is
+// reserved for the on-pace marker on every bar.
+const COLORS = ['#2F8F72','#D2478F','#4478B8','#9A5490','#7E9B32','#C0503E','#1F94A0','#C09A20'];
 const MAX_MILES = 80;
 const MAX_NAME = 24;
 const MAX_NOTE = 60;
@@ -27,6 +30,19 @@ export default {
       }
       if (path === '/api/export.csv' && request.method === 'GET') {
         return await exportCsv(env);
+      }
+      if (path === '/icon.svg' || path === '/favicon.svg') {
+        return asset(path === '/icon.svg' ? ICON_SVG : FAVICON_SVG, 'image/svg+xml');
+      }
+      if (path === '/site.webmanifest') {
+        return asset(MANIFEST, 'application/manifest+json');
+      }
+      if (PNGS[path.slice(1)]) {
+        return asset(png(path.slice(1)), 'image/png');
+      }
+      if (path === '/favicon.ico') {
+        // no .ico in the set; modern browsers take the SVG
+        return asset(FAVICON_SVG, 'image/svg+xml');
       }
       if (path === '/healthz') {
         return new Response('ok', { headers: { 'content-type': 'text/plain' } });
@@ -164,6 +180,29 @@ async function readJson(request) {
   } catch (e) {
     return null;
   }
+}
+
+/** Brand art and the manifest: same bytes for everyone, cached hard. */
+function asset(body, type) {
+  return new Response(body, {
+    headers: {
+      'content-type': type,
+      'cache-control': 'public, max-age=604800',
+    },
+  });
+}
+
+// base64 -> bytes, decoded once per isolate rather than per request
+const pngCache = new Map();
+function png(name) {
+  let bytes = pngCache.get(name);
+  if (!bytes) {
+    const bin = atob(PNGS[name]);
+    bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    pngCache.set(name, bytes);
+  }
+  return bytes;
 }
 
 function json(data, status = 200) {

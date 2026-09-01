@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="September Miles">
+  <defs>
+    <linearGradient id="lane" x1="0.05" y1="0" x2="0.95" y2="1">
+      <stop offset="0" stop-color="#22D3EE"/>
+      <stop offset="0.48" stop-color="#4C7DF7"/>
+      <stop offset="1" stop-color="#7C5CFF"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="0" fill="#0B1130"/>
+  <g transform="rotate(-8 256 256) translate(256 256) scale(1.1) translate(-256 -256)">
+    <path d="M 332 180 A 76 76 0 1 0 256 256 A 76 76 0 1 1 180 332" fill="none" stroke="url(#lane)" stroke-width="72" stroke-linecap="butt"/>
+    <path d="M 332 180 A 76 76 0 1 0 256 256 A 76 76 0 1 1 180 332" fill="none" stroke="#0B1130" stroke-width="10" stroke-linecap="butt"/>
+  </g>
+</svg>

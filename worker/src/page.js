@@ -7,21 +7,30 @@ export const PAGE = `<!doctype html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<meta name="description" content="A shared leaderboard for our 100-mile September challenge.">
-<title>Hundred Mile September</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='4' fill='%2316211D'/%3E%3Crect x='9' y='5' width='6' height='22' rx='1' fill='%23D75B1E'/%3E%3Crect x='19' y='13' width='6' height='14' rx='1' fill='%234FB394'/%3E%3C/svg%3E">
+<meta name="description" content="Everyone's own 100 miles in September, on one board.">
+<title>September Miles</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#EEF1F6">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#090F20">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Sept Miles">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..125,400..800&family=IBM+Plex+Mono:wght@400;500&family=Public+Sans:wght@400;500;600&display=swap">
 <style>
 :root{
   color-scheme: light dark;
-  --bg:#EBEEE9; --surface:#FFFFFF; --surface-2:#F4F7F2;
-  --ink:#16211D; --ink-2:#4E5C57; --ink-3:#7C8A85;
-  --line:#D5DCD6; --line-2:#E4EAE3;
-  --pine:#24614F; --pine-ink:#FFFFFF; --pine-soft:#DDEBE4;
-  --blaze:#D75B1E;
-  --shadow:0 1px 2px rgba(22,33,29,.06), 0 8px 24px -18px rgba(22,33,29,.5);
+  --bg:#EEF1F6; --surface:#FFFFFF; --surface-2:#F5F7FC;
+  --ink:#101830; --ink-2:#48546F; --ink-3:#78849D;
+  --line:#DBE1EC; --line-2:#E8ECF4;
+  --pine:#1C7A5E; --pine-ink:#FFFFFF; --pine-soft:#DAF0E7;
+  --blaze:#DD6224;
+  --brand-a:#1FC4E8; --brand-b:#6A5AF9; --brand:#5A54EE;
+  --shadow:0 1px 2px rgba(16,24,48,.06), 0 8px 24px -18px rgba(16,24,48,.55);
   --r:3px;
   --display:"Archivo","Helvetica Neue",Helvetica,Arial,sans-serif;
   --body:"Public Sans","Helvetica Neue",Helvetica,Arial,sans-serif;
@@ -29,20 +38,22 @@ export const PAGE = `<!doctype html>
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#0F1613; --surface:#16211D; --surface-2:#1B2823;
-    --ink:#E6EDE8; --ink-2:#A2B1AB; --ink-3:#76867F;
-    --line:#27352F; --line-2:#202D28;
-    --pine:#4FB394; --pine-ink:#0F1613; --pine-soft:#1D332C;
-    --blaze:#F0824A;
+    --bg:#090F20; --surface:#121A33; --surface-2:#18213D;
+    --ink:#E7ECF8; --ink-2:#A2AEC8; --ink-3:#77839E;
+    --line:#243052; --line-2:#1C2645;
+    --pine:#4FBE9B; --pine-ink:#090F20; --pine-soft:#153328;
+    --blaze:#F2854F;
+    --brand-a:#3ED3F0; --brand-b:#8B7DFF; --brand:#8B8CFF;
     --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -20px rgba(0,0,0,.9);
   }
 }
 :root[data-theme="dark"]{
-  --bg:#0F1613; --surface:#16211D; --surface-2:#1B2823;
-  --ink:#E6EDE8; --ink-2:#A2B1AB; --ink-3:#76867F;
-  --line:#27352F; --line-2:#202D28;
-  --pine:#4FB394; --pine-ink:#0F1613; --pine-soft:#1D332C;
-  --blaze:#F0824A;
+    --bg:#090F20; --surface:#121A33; --surface-2:#18213D;
+  --ink:#E7ECF8; --ink-2:#A2AEC8; --ink-3:#77839E;
+  --line:#243052; --line-2:#1C2645;
+  --pine:#4FBE9B; --pine-ink:#090F20; --pine-soft:#153328;
+  --blaze:#F2854F;
+  --brand-a:#3ED3F0; --brand-b:#8B7DFF; --brand:#8B8CFF;
   --shadow:0 1px 2px rgba(0,0,0,.4), 0 10px 26px -20px rgba(0,0,0,.9);
 }
 *{box-sizing:border-box}
@@ -50,15 +61,19 @@ html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;-webkit-font-smoothing:antialiased}
 img{max-width:100%}
 [hidden]{display:none !important}
-:focus-visible{outline:2px solid var(--blaze);outline-offset:2px}
+:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 
 .wrap{max-width:1060px;margin:0 auto;padding:clamp(20px,3.4vw,38px) clamp(14px,3vw,26px) 72px}
 
 /* masthead */
 .masthead{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:18px;padding-bottom:20px;border-bottom:2px solid var(--ink)}
 .brand{display:flex;gap:14px;align-items:flex-start;min-width:0}
-.blazemark{flex:none;width:14px;height:42px;margin-top:7px;background:var(--blaze);border-radius:1px}
-h1{margin:0;font-family:var(--display);font-variation-settings:"wdth" 116;font-weight:800;font-size:clamp(29px,5.4vw,47px);line-height:.96;letter-spacing:-.022em;text-wrap:balance}
+.appmark{flex:none;width:46px;height:46px;margin-top:2px;border-radius:12px;display:block}
+.w1{color:var(--ink)}
+.w2{background:linear-gradient(96deg,var(--brand-a),var(--brand-b));-webkit-background-clip:text;background-clip:text;color:transparent}
+@supports not ((-webkit-background-clip:text) or (background-clip:text)){.w2{color:var(--brand)}}
+.w3{color:var(--ink-3);font-weight:600;font-size:.4em;letter-spacing:.01em;margin-left:.14em}
+h1{margin:0;display:flex;flex-wrap:wrap;align-items:baseline;font-family:var(--display);font-variation-settings:"wdth" 112;font-weight:800;font-size:clamp(24px,4.6vw,40px);line-height:1.05;letter-spacing:-.012em}
 .tag{margin:8px 0 0;color:var(--ink-2);font-size:14px;max-width:46ch}
 .clock{flex:none;text-align:right;display:flex;align-items:baseline;gap:9px}
 .clock-num{font-family:var(--display);font-variation-settings:"wdth" 112;font-weight:800;font-size:clamp(34px,6vw,52px);line-height:.9;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
@@ -98,7 +113,7 @@ h2{margin:0;font-family:var(--display);font-variation-settings:"wdth" 100;font-w
 .rank{grid-area:rank;font-family:var(--display);font-variation-settings:"wdth" 100;font-weight:700;font-size:13px;color:var(--ink-3);font-variant-numeric:tabular-nums;text-align:right}
 .row.lead .rank{color:var(--ink)}
 .row.me{background:var(--surface-2)}
-.rank.done{color:var(--pine);font-size:15px}
+.rank.done{color:var(--brand);font-size:15px}
 .you{display:inline-block;margin-left:6px;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);border:1px solid var(--line);border-radius:2px;padding:0 4px;vertical-align:1px}
 .ro-note{margin:0;font-size:13.5px;color:var(--ink-2)}
 .mark{grid-area:mark;width:8px;height:26px;border-radius:1px;align-self:center}
@@ -118,7 +133,7 @@ h2{margin:0;font-family:var(--display);font-variation-settings:"wdth" 100;font-w
 .chip{display:inline-block;margin-top:3px;font-family:var(--mono);font-size:10.5px;padding:1px 5px;border-radius:2px;border:1px solid var(--line);color:var(--ink-3);background:var(--surface-2)}
 .chip.ahead{color:var(--pine);border-color:color-mix(in srgb, var(--pine) 35%, var(--line));background:var(--pine-soft)}
 .chip.behind{color:var(--blaze);border-color:color-mix(in srgb, var(--blaze) 32%, var(--line));background:transparent}
-.chip.done{color:var(--pine-ink);background:var(--pine);border-color:var(--pine)}
+.chip.done{color:#fff;background:linear-gradient(110deg,var(--brand-a),var(--brand-b));border-color:transparent}
 
 /* log form */
 .card{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);box-shadow:var(--shadow);padding:16px}
@@ -127,9 +142,9 @@ h2{margin:0;font-family:var(--display);font-variation-settings:"wdth" 100;font-w
 input,select{width:100%;font-family:var(--body);font-size:15px;color:var(--ink);background:var(--surface-2);border:1px solid var(--line);border-radius:2px;padding:9px 10px;-webkit-appearance:none;appearance:none}
 input[type="date"]{font-family:var(--mono);font-size:13.5px}
 select{background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%);background-position:calc(100% - 16px) 51%,calc(100% - 11px) 51%;background-size:5px 5px,5px 5px;background-repeat:no-repeat;padding-right:32px}
-input:focus,select:focus{outline:2px solid var(--blaze);outline-offset:-1px;background:var(--surface)}
+input:focus,select:focus{outline:2px solid var(--brand);outline-offset:-1px;background:var(--surface)}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.btn{width:100%;font-family:var(--display);font-variation-settings:"wdth" 104;font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--pine-ink);background:var(--pine);border:1px solid var(--pine);border-radius:2px;padding:11px 14px;cursor:pointer;transition:filter .12s ease}
+.btn{width:100%;font-family:var(--display);font-variation-settings:"wdth" 104;font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:linear-gradient(110deg,var(--brand-a),var(--brand-b));border:1px solid transparent;border-radius:3px;padding:11px 14px;cursor:pointer;transition:filter .12s ease}
 .btn:hover{filter:brightness(1.09)}
 .btn:disabled{opacity:.5;cursor:default;filter:none}
 .status{margin-top:10px;font-family:var(--mono);font-size:11.5px;color:var(--ink-3);min-height:1.3em}
@@ -169,9 +184,9 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);font-fa
 <div class="wrap" id="root">
   <header class="masthead">
     <div class="brand">
-      <span class="blazemark" aria-hidden="true"></span>
+      <img class="appmark" src="/icon.svg" alt="" width="46" height="46">
       <div>
-        <h1>Hundred Mile September</h1>
+        <h1><span class="w1">SEPTEMBER</span><span class="w2">MILES</span><span class="w3">.com</span></h1>
         <p class="tag" id="tag">Everyone's own 100. Same month, same goal, one board.</p>
       </div>
     </div>
@@ -332,7 +347,7 @@ footer{margin-top:38px;padding-top:16px;border-top:1px solid var(--line);font-fa
         rows.length ? num(todayTotal) + ' ' + c.unit + ' of it today, across ' + rows.length +
           (rows.length === 1 ? ' of us' : ' of us') : 'nobody logged yet');
 
-    $('boardnote').textContent = el === 0 ? 'starts ' + shortDate(c.start) : 'blaze line = on-pace';
+    $('boardnote').textContent = el === 0 ? 'starts ' + shortDate(c.start) : 'orange line = on-pace';
     $('boardwrap').innerHTML = rows.length
       ? '<ul class="board">' + rows.map(rowHTML).join('') + '</ul>'
       : '<div class="board"><div class="empty"><b>Nobody has started</b>Add your name and your ' + c.goal + ' starts here.</div></div>';
