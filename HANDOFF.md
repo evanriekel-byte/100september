@@ -12,17 +12,42 @@ and why it behaves the way it does, read [OVERVIEW.md](OVERVIEW.md) first.
 | Cloudflare Worker | `hundred-mile-september` |
 | D1 database | `hundred-mile-september` |
 | Domain registrar | Cloudflare (the zone is in the same account as the Worker) |
-| Repo branch | `claude/100-mile-challenge-tracker-uq7g61` |
+| Default branch | `claude/100-mile-challenge-tracker-uq7g61` — what the live Worker was built from |
 
 Both custom domains are attached to the Worker under **Workers & Pages →
 hundred-mile-september → Settings → Domains & Routes**, with certificates issued
 and renewed by Cloudflare.
 
-**Not in this repo:** the Cloudflare account id, the D1 `database_id`, and the group
-password. The account and database ids are in the working copy's `worker/wrangler.toml`
-(untracked edit) and can be re-listed any time with `npx wrangler d1 list`. The
-password is a Worker secret named `PASSPHRASE` — it is write-only, so if it is
-forgotten it gets rotated, not recovered.
+### Not yet live
+
+> This document describes the repo. Activity photos and the open board are committed
+> on **`claude/activity-photos`** but **not deployed**. To land them, from the repo
+> root:
+>
+> ```sh
+> git push origin claude/activity-photos:claude/100-mile-challenge-tracker-uq7g61
+> git fetch origin
+> git branch -f claude/100-mile-challenge-tracker-uq7g61 origin/claude/100-mile-challenge-tracker-uq7g61
+> git checkout claude/100-mile-challenge-tracker-uq7g61
+> cd worker
+> npm run db:migrate            # adds entries.img/w/h — before the deploy, not after
+> npx wrangler secret delete PASSPHRASE
+> npx wrangler deploy
+> ```
+>
+> Pushing branch-to-branch rather than merging locally keeps the untracked
+> `database_id` edit in `wrangler.toml` from being clobbered. **Delete this section
+> once it is done.**
+
+**Not in this repo:** the Cloudflare account id and the D1 `database_id`. Both live in
+the working copy's `worker/wrangler.toml` as an untracked edit over the
+`PASTE_YOUR_DATABASE_ID_HERE` placeholder, and can be re-listed any time with
+`npx wrangler d1 list`. Keep that edit out of commits — switching branches will fight
+you for the file otherwise.
+
+There is **no `PASSPHRASE` secret**; the board takes writes from anyone with the link.
+See "The password is a switch" under Operations for what that costs and how to put it
+back.
 
 ## Layout
 
@@ -67,13 +92,21 @@ npx wrangler deploy
 That is the whole loop for any code change. First-time setup on a new machine also
 needs `npx wrangler login` and the real `database_id` pasted into `wrangler.toml`.
 
+**When a change touches the database, run the schema before the deploy**, never after
+— the new code will query columns the old database does not have and return 500s in
+the gap. See the two `db:` commands under Operations.
+
 Local development:
 
 ```sh
 npm run db:local                                  # create tables in the local D1
-echo 'PASSPHRASE = "anything"' > .dev.vars        # optional; .dev.vars is gitignored
+npm run db:migrate:local                          # only if your local DB predates a column
 npm run dev                                       # http://127.0.0.1:8787
 ```
+
+There is nothing to configure for auth locally: with no `.dev.vars`, `wrangler dev`
+behaves exactly like production does today. To exercise the locked path instead, write
+`PASSPHRASE = "anything"` into `worker/.dev.vars` (gitignored).
 
 ## Operations
 
@@ -176,8 +209,8 @@ activity photos are served from it with the chat switched off.
 | GET | `/api/export.csv` | | full log, no auth |
 | GET | `/healthz` | | `ok` |
 
-Chat writes take the same group password as miles. Chat reads, like board reads, are
-open to anyone with the link.
+Chat writes are authorised exactly like miles — which today means not at all. Reads
+were always open to anyone with the link.
 
 Plus `/favicon.svg`, `/icon.svg`, `/apple-touch-icon.png`, `/icon-192.png`,
 `/icon-512.png`, `/icon-maskable.png`, `/site.webmanifest`.
@@ -225,9 +258,10 @@ And in `addMessage` specifically:
 Client state that is not on the server: `localStorage` holds `hms.me` (which name is
 yours, for the "you" tag, the form default, which chat bubbles are yours, and who the
 chat composer posts as),
-`hms.key` (the password), and `hms.seen` (the newest message timestamp you have
-looked at, which drives the dot on the Social tab). All three are per-device
-conveniences; losing them costs one dropdown selection and one password entry.
+`hms.key` (the password — carried but unused while none is set), and `hms.seen` (the
+newest message timestamp you have looked at, which drives the dot on the Social tab).
+All three are per-device conveniences. Losing them costs one dropdown selection
+today, plus one password entry if a password is ever set again.
 
 ## Gotchas that cost time
 
@@ -255,7 +289,11 @@ you read the output.
 ## Verification done
 
 No CI. Everything below was checked by hand against a real `wrangler dev` with a
-local D1 and a seeded mid-challenge board, driving the page with Playwright:
+local D1 and a seeded mid-challenge board, driving the page with Playwright. Each
+block is the round of checks done when that feature landed, kept as a record of what
+has actually been exercised.
+
+**The original board** (checked while a password was still in force):
 
 - Validation: wrong password, missing password, out-of-window date, zero miles,
   900 miles, blank name — all rejected with the right status and message.
@@ -267,7 +305,7 @@ local D1 and a seeded mid-challenge board, driving the page with Playwright:
 - Every brand route: correct content-type and byte count matching the source file.
 - Light and dark themes at 1180px, 390px and 320px, with no horizontal scroll.
 
-Re-verified the same way after the three-page rebuild, plus:
+**The three-page rebuild** — re-verified all of the above, plus:
 
 - All three tabs at 1180px, 390px and 320px, light and dark: no horizontal scroll,
   exactly one tab marked selected, no console errors.
@@ -283,19 +321,51 @@ Re-verified the same way after the three-page rebuild, plus:
 - Wrong password, empty message, non-image data URL, and two-click remove on both a
   message and an entry (one click never deletes).
 
-Worth re-running by hand after any change to `page.js` or `index.js`.
+**The locked composer** — first visit asks who you are and then locks to that name; a
+known device shows no dropdown at all; messages are attributed to the locked name;
+not-you / cancel / switch all behave; a 30-second refresh mid-typing keeps the name.
+
+**Activity photos and the open board** — checked in all four combinations of
+`SOCIAL` on/off and password set/unset:
+
+- A photo attached through the miles form, stored, and served back from `/img/<id>`
+  **byte-identical** to the file uploaded.
+- Thumbnail in your history and in the group activity feed; both open full size in
+  the lightbox; Escape closes it.
+- Deleting the entry deletes the photo with it — `images` row gone, `/img/<id>` 404,
+  and no reference left in the CSV export.
+- Entries with no photo unaffected, and no stray thumbnail rendered for them.
+- `/img/` reachable with `SOCIAL = "off"` while all three `/api/chat*` routes 404.
+- Non-image data URL rejected; oversized photo rejected.
+- The whole chat suite still passing with `SOCIAL = "on"`.
+
+Worth re-running by hand after any change to `page.js` or `index.js`. One cheap
+smoke test catches a whole class of `page.js` breakage — every function the client
+calls is actually defined:
+
+```sh
+node --input-type=module -e "import('./src/page.js').then(m=>{
+  const js=m.PAGE.split('<script>')[1].split('</script>')[0];
+  const def=new Set([...js.matchAll(/function\s+(\w+)\s*\(/g)].map(x=>x[1]));
+  [...js.matchAll(/var\s+(\w+)\s*=/g)].forEach(x=>def.add(x[1]));
+  const called=[...new Set([...js.matchAll(/(?:^|[^\w.\$])([a-z]\w*)\s*\(/g)].map(x=>x[1]))];
+  console.log(called.filter(n=>!def.has(n)));})"
+```
+
+Anything printed that is not a JS builtin is a function that was deleted or renamed
+out from under its callers.
 
 ## Known limits
 
 - **Honor-system identity.** Anyone can log as anyone. See OVERVIEW for why.
-- **One shared password, no rate limiting.** Guesses are unlimited. Adequate for a
-  private link shared with friends; not adequate if the URL goes public.
+- **Writes are open to anyone with the link.** No password is set, so a stranger who
+  finds the domain can add entries and upload photos. Deliberate — see "The password
+  is a switch" — and reversible in one command.
 
 - **Dates are the viewer's local date.** Someone logging near midnight in another
   timezone may pick a different "today" than the board's other users. Harmless here.
 - **No backups run automatically.** The CSV export is manual, it names photos but
   does not contain them, and chat messages are not in it at all.
-- **Writes are open.** No password is set; see "The password is a switch" above.
 - **Photos live in D1, not R2.** That keeps the whole app on one binding and inside
   the free tier, but D1 is not built to be a photo store. At a few hundred photos it
   is fine. If the group ever fills it up, move `images` to an R2 bucket: only
@@ -316,5 +386,5 @@ Worth re-running by hand after any change to `page.js` or `index.js`.
 Roughly in order of value for effort: per-person PINs if the group ever outgrows the
 honor system; editable entries; a sort toggle (finished-first, or alphabetical, to
 soften the leaderboard read); an `og:image` so the link previews properly when it gets
-texted around; reactions on chat messages; photos on activity entries too, reusing the
-`images` table the chat already has.
+texted around; reactions on chat messages; a second stored size so a thumbnail is not
+the full photo.

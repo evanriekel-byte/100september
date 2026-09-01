@@ -26,17 +26,20 @@ one URL that works in any phone or desktop browser.
 That's it. No login, no email, no password, no app. On a phone, Share → Add to Home Screen puts
 it on the home screen and it launches without browser chrome, like an app.
 
-## Three pages
+## The pages
 
-The app is three tabs — a bar in thumb reach on a phone, a rail under the masthead
-on a desktop. Each one answers a different question, and each has its own URL
-(`#/log`, `#/group`, `#/social`) so a tab survives a refresh and can be linked to.
+Navigation is a bar in thumb reach on a phone and a rail under the masthead on a
+desktop. Each tab answers a different question, and each has its own URL (`#/log`,
+`#/group`, `#/social`) so a tab survives a refresh and can be linked to.
 
-| tab | the question it answers |
-|---|---|
-| **Log** | how am I doing, and let me add today's activity |
-| **Group** | where does everyone stand |
-| **Social** | what is everyone saying *(off by default — see below)* |
+| tab | the question it answers | |
+|---|---|---|
+| **Log** | how am I doing, and let me add today's activity | on |
+| **Group** | where does everyone stand | on |
+| **Social** | what is everyone saying | **off** |
+
+**Today the board shows two tabs.** Social is built and tested but switched off in
+config, so it is not rendered and its routes are not reachable — see below for why.
 
 **Log** is the landing page, because logging is the thing people come to do. Three
 tiles across the top — your total, your pace against the line, what you need per day
@@ -54,9 +57,11 @@ group activity feed, filterable to one person with a tap.
 **Social** is a group chat — **built, but switched off for now** (`SOCIAL = "off"`
 in `wrangler.toml`). Picking your name from a dropdown is a fair trade for logging
 miles, where a wrong entry is a visible, deletable fact. It is a worse trade for a
-conversation, where the same dropdown lets anyone speak as anyone. The tab comes back
-with a one-line config change once identity is worth trusting. What it does when it
-is on: text, photos, or both.
+conversation, where the same dropdown lets anyone speak as anyone. The composer was
+since locked to the device's own name, which removes the casual version of that
+problem, but not the determined one. The tab comes back with a one-line config change
+whenever the group decides that is good enough. What it does when it is on: text,
+photos, or both.
 
 The chat does not ask who you are every time. It posts as the name this device has
 already claimed — *Posting as Evan* — with a **not you?** escape for a shared phone.
