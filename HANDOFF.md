@@ -151,6 +151,19 @@ it or it fails silently.** `img-src` already covers `blob:` for exactly this
 reason: the composer reads a picked photo through `URL.createObjectURL` before
 the canvas downscales it.
 
+**The Who menu opens blank** on a device with no `hms.me`, and `submit` refuses a
+blank with *Pick who you are first*. `fillWho` used to fall back to
+`selectedIndex = 0`, and its options come from `standings()`, which is sorted by
+total — so an unknown device pre-selected the current leader, and the name it
+picked for you changed as the board reordered. That is the cheapest way for one
+person's miles to land on another person's row, and it needed no bad intent at
+all. A device that already knows its own name still gets it pre-selected; the
+blank is only for "nobody has said who this is".
+
+`whoReady` (not the option count) is what tells `fillWho` whether this is the
+first fill, because the blank now ships in the static markup too — counting
+options would see two and skip the remembered-name default.
+
 **Attribution** — every entry records `logged_by` (the name the device had
 claimed before this write) and `device` (a random per-browser id in
 `hms.dev`). The feed and your history show a quiet `by Coco` tag whenever
@@ -369,8 +382,9 @@ Worth re-running by hand after any change to `page.js` or `index.js`.
 
 ## Known limits
 
-- **Honor-system identity.** Anyone can log as anyone. Attribution makes it
-  *visible* — the feed says `by Coco` when Coco logs Julia's miles — but it does
+- **Honor-system identity.** Anyone can log as anyone — but no longer by
+  accident on a fresh device, since Who opens blank and will not submit empty.
+  Attribution makes the deliberate case *visible* — the feed says `by Coco` when Coco logs Julia's miles — but it does
   not prevent it, and it is not evidence. `logged_by` and `device` are sent by
   the browser, so anyone willing to open devtools can send whatever they like.
   It catches the mis-tap and the casual, which is what actually happens in a

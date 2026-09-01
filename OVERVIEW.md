@@ -23,6 +23,14 @@ one URL that works in any phone or desktop browser.
 3. Enters miles, a date, and an optional note.
 4. Types the shared group password, once per device. Their browser remembers it.
 
+Step 2 is a real step, not a formality. On a device that has not said who it is,
+**Who opens blank** and the form refuses to submit until somebody answers it. It
+used to open on the first name in the list — and that list is sorted by total, so
+a new phone quietly pre-selected whoever was winning. Fill in miles, tap Add, and
+you had logged them for somebody else without ever looking at the field. Once a
+device knows you it does default to your own name, because that is the entire
+point of remembering.
+
 That's it. No login, no email, no app. On a phone, Share → Add to Home Screen puts
 it on the home screen and it launches without browser chrome, like an app.
 

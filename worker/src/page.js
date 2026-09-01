@@ -341,7 +341,7 @@ The whole log is also available as a plain file at <a href="/api/export.csv">/ap
           <div class="sec-head" style="margin-bottom:14px"><h2>Log an activity</h2><span class="sec-note live"><i></i><span id="livelbl">live</span></span></div>
           <form id="logform" autocomplete="off">
             <label class="field"><span class="lbl">Who</span>
-              <select id="who"><option value="__new">+ Add someone new</option></select></label>
+              <select id="who"><option value="">— pick your name —</option><option value="__new">+ Add someone new</option></select></label>
             <label class="field" id="newwrap"><span class="lbl">Name</span>
               <input id="newname" type="text" placeholder="First name" maxlength="24"></label>
             <div class="two">
@@ -396,7 +396,7 @@ The whole log is also available as a plain file at <a href="/api/export.csv">/ap
             </div>
             <div class="cwho" id="cwhopick" hidden>
               <span>Posting as</span>
-              <select id="cwho" aria-label="Who you are"><option value="__new">+ Add someone new</option></select>
+              <select id="cwho" aria-label="Who you are"><option value="">— pick your name —</option><option value="__new">+ Add someone new</option></select>
               <input id="cnewname" type="text" placeholder="First name" maxlength="24" aria-label="Your name" hidden>
               <button class="linkbtn" type="button" id="ccancel" hidden>cancel</button>
             </div>
@@ -442,6 +442,7 @@ The whole log is also available as a plain file at <a href="/api/export.csv">/ap
   var pending = null;        /* photo staged in the composer */
   var chatSig = '', chatTimer = null;
   var chatPick = false;      /* composer is asking who you are, rather than assuming */
+  var whoReady = false;      /* has fillWho run once? decides remembered-name vs. keep */
 
   function $(id){ return document.getElementById(id); }
   function esc(s){
@@ -487,6 +488,7 @@ The whole log is also available as a plain file at <a href="/api/export.csv">/ap
     } catch (e) {}
     return null;
   }
+  var PICK = '— pick your name —';
   function me(){ return ls('hms.me') || ''; }
   /* A random id for this browser, made once and kept. It says nothing about
      who you are -- it only lets the board notice that several entries were
@@ -814,26 +816,36 @@ The whole log is also available as a plain file at <a href="/api/export.csv">/ap
       ' The board refreshes on its own every 30 seconds.';
   }
 
+  /* The Who menu opens blank on a device that has not said who it is.
+     It used to open on the first name in the list -- and that list is sorted
+     by total, so a new phone silently pre-selected whoever was winning. Fill
+     in miles, tap Add, and you had logged them for somebody else without ever
+     touching the field. A blank cannot be submitted, so the mistake now has to
+     be made on purpose. A device that already knows you still gets your own
+     name: defaulting to yourself is the point of remembering. */
   function fillWho(){
     var rows = standings();
     [['who', 'newwrap'], ['cwho', 'cnewname']].forEach(function(pair){
       var sel = $(pair[0]);
-      // Before the first fill the select holds nothing but the placeholder, so
-      // default to you. After that keep whatever is selected — "+ Add someone
-      // new" included, or a 30-second refresh wipes a name being typed.
-      var filled = sel.options.length > 1;
-      var keep = (filled && sel.value) ? sel.value : me();
-      sel.innerHTML = rows.map(function(r){
-        return '<option value="' + esc(r.name) + '">' + esc(r.name) + '</option>';
-      }).join('') + '<option value="__new">+ Add someone new</option>';
+      // On the first fill fall back to whoever this device already is. After
+      // that keep whatever is showing — the blank and "+ Add someone new"
+      // included, or a 30-second refresh wipes a name being typed.
+      var keep = whoReady ? sel.value : me();
+      sel.innerHTML = '<option value="">' + PICK + '</option>' +
+        rows.map(function(r){
+          return '<option value="' + esc(r.name) + '">' + esc(r.name) + '</option>';
+        }).join('') + '<option value="__new">+ Add someone new</option>';
       var found = false;
       for (var i = 0; i < sel.options.length; i++){
         if (keyOf(sel.options[i].value) === keyOf(keep)){ sel.selectedIndex = i; found = true; break; }
       }
-      if (!found && rows.length) sel.selectedIndex = 0;
+      // Nothing to restore — an unknown device, or a name since removed from
+      // the board. Blank, never the person at the top of it.
+      if (!found) sel.value = '';
       if (!rows.length) sel.value = '__new';
       $(pair[1]).hidden = sel.value !== '__new';
     });
+    whoReady = true;
   }
 
   /* ---------- chat ---------- */
@@ -1003,7 +1015,7 @@ The whole log is also available as a plain file at <a href="/api/export.csv">/ap
 
     var who = chatWho();
     if (!who){
-      csay('Type your name first.', true);
+      csay('Pick who you are first.', true);
       chatPick = true; paintChatWho(); $('cnewname').focus();
       return;
     }
@@ -1128,8 +1140,13 @@ The whole log is also available as a plain file at <a href="/api/export.csv">/ap
     var c = S.config;
 
     var sel = $('who');
+    if (!sel.value){
+      say('Pick who you are first — the board will not guess.', true);
+      sel.focus();
+      return;
+    }
     var who = tidy(sel.value === '__new' ? $('newname').value : sel.value);
-    if (!who){ say('Add a name first.', true); return; }
+    if (!who){ say('Type your name first.', true); $('newname').focus(); return; }
 
     var miles = parseFloat($('miles').value);
     if (!(miles > 0)){ say('How many ' + c.unitLong + '? Enter a number above zero.', true); return; }
@@ -1231,6 +1248,7 @@ The whole log is also available as a plain file at <a href="/api/export.csv">/ap
   $('who').addEventListener('change', function(){
     var isNew = this.value === '__new';
     $('newwrap').hidden = !isNew;
+    if (this.value) say('');
     if (isNew) $('newname').focus();
   });
   $('cwho').addEventListener('change', function(){
