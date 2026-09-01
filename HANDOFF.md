@@ -90,6 +90,40 @@ echo 'PASSPHRASE = "anything"' > .dev.vars        # optional; .dev.vars is gitig
 npm run dev                                       # http://127.0.0.1:8787
 ```
 
+## Deploying without a terminal
+
+`.github/workflows/deploy.yml` deploys from GitHub, so a phone is enough:
+**Actions → Deploy → Run workflow**, pick a branch, Run. It is manual only —
+there is no push trigger, so merging a pull request ships nothing by itself.
+
+Setting it up needs three repository secrets, and is a laptop job once. Add them
+under **Settings → Secrets and variables → Actions → New repository secret**:
+
+| secret | where it comes from |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare → My Profile → API Tokens → Create Token → the **Edit Cloudflare Workers** template, then add **D1 → Edit** to it. Shown once; copy it straight into GitHub. |
+| `CLOUDFLARE_ACCOUNT_ID` | `npx wrangler whoami`, or the right-hand column of the Workers & Pages overview. |
+| `D1_DATABASE_ID` | `npx wrangler d1 list`. The same value that goes in `wrangler.toml`. |
+
+The database id is deliberately not committed, so the workflow pastes it into
+`wrangler.toml` at build time and fails loudly rather than deploying against the
+placeholder. After deploying it checks `/healthz` and fails if the site does not
+come back.
+
+The **Run migrate.sql first** checkbox is only ever needed once. If it stops with
+`duplicate column name: logged_by`, the board is already migrated — untick it and
+run again. Nothing is broken either way; the Worker handles both shapes.
+
+To make merges deploy automatically instead, add a `push:` trigger next to
+`workflow_dispatch:`. It was left off on purpose: it is nicer to ship when you
+mean to than to discover the board changed because a branch merged.
+
+**A phone-only alternative for the migration:** the two `ALTER TABLE` statements
+in `migrate.sql` can be pasted straight into the Cloudflare dashboard's D1
+console (Storage & Databases → D1 → the database → Console). The Worker code is
+three modules and a 140 KB assets file, so the dashboard is not a realistic way
+to ship *code* — but it is a fine way to run two lines of SQL.
+
 ## Operations
 
 **Change the rules** — edit `[vars]` in `worker/wrangler.toml`, then deploy. These

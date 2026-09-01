@@ -24,6 +24,9 @@ npx wrangler deploy      # ships to the live Worker
 npm run dev              # or run it locally at 127.0.0.1:8787
 ```
 
+No terminal to hand? **Actions → Deploy → Run workflow** does the same thing from
+a phone, once the three secrets in HANDOFF are set up.
+
 Change the challenge — distance, dates, miles vs. kilometres — in `[vars]` in
 `worker/wrangler.toml`, then deploy.
 
