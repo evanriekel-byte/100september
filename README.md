@@ -3,10 +3,12 @@
 A shared board for a group taking on the same personal challenge: 100 miles in
 September. Run it, walk it — it takes a distance and a date, nothing else.
 
-Two tabs: **Log** your own activity and see your history, **Group** for the
-leaderboard and everyone's activity. A third, **Social** — a group chat with photos —
-is built but ships switched off (`SOCIAL` in `worker/wrangler.toml`); see HANDOFF for
-why and how to turn it on.
+Two tabs: **Log** your own activity — with a photo, if you took one — and see your
+history; **Group** for the leaderboard and everyone's activity. A third, **Social** —
+a group chat with photos — is built but ships switched off (`SOCIAL` in
+`worker/wrangler.toml`); see HANDOFF for why and how to turn it on.
+
+No accounts and no password: open the link, pick your name, log the miles.
 
 **Live: [septembermiles.com](https://septembermiles.com)**
 

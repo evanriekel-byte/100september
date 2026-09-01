@@ -20,10 +20,10 @@ one URL that works in any phone or desktop browser.
 
 1. Opens the link.
 2. Picks their name from the **Who** dropdown — or types it once, the first time.
-3. Enters miles, a date, and an optional note.
-4. Types the shared group password, once per device. Their browser remembers it.
+3. Enters miles, a date, an optional note, and an optional photo.
+4. Taps **Add miles**.
 
-That's it. No login, no email, no app. On a phone, Share → Add to Home Screen puts
+That's it. No login, no email, no password, no app. On a phone, Share → Add to Home Screen puts
 it on the home screen and it launches without browser chrome, like an app.
 
 ## Three pages
@@ -42,6 +42,11 @@ on a desktop. Each one answers a different question, and each has its own URL
 tiles across the top — your total, your pace against the line, what you need per day
 from here — then the form, then **your own history**: every activity you have logged,
 with your streak, your daily average, and your best day.
+
+An activity can carry **a photo** — the view from the turnaround, the watch face, the
+dog. It shows as a thumbnail on the entry, in your history and in the group feed, and
+opens full size on a tap. Photos are downscaled in the browser before they are sent,
+so a 4 MB phone shot goes out around 150 KB and the board stays quick on a phone.
 
 **Group** is the shared view: the four-tile stat strip, the leaderboard, and the full
 group activity feed, filterable to one person with a tap.
@@ -81,8 +86,9 @@ pace chip (`+14 ahead` / `-34 behind`) and what they'd need per day to finish fr
 here. Finishing your 100 replaces your position number with a check — completing
 your own commitment is the win condition, not out-running anyone.
 
-**Activity** — every entry, newest first, colored by person, with a two-click remove
-for typos. Capped at 24 with a "show all" toggle, and filterable to one person.
+**Activity** — every entry, newest first, colored by person, photo thumbnail if there
+is one, and a two-click remove for typos. Capped at 24 with a "show all" toggle, and
+filterable to one person.
 
 Rows sort by total, so the board does read a little like a leaderboard. That is
 deliberate — seeing where you sit is most of why people open a shared board — but
@@ -109,10 +115,14 @@ or on purpose.
 
 That is a deliberate trade. Per-person logins would add friction for every single
 participant to defend against a problem that does not exist in a group of friends,
-and the activity feed makes anything strange obvious immediately. The shared
-password is not there to tell people apart — it only stops a stranger who stumbles
-on the URL from writing to the board. **Reading is open to anyone with the link**, and
-that now includes the chat and any photo posted to it.
+and the activity feed makes anything strange obvious immediately.
+
+**There is no group password either.** It was one more thing to explain, forward, and
+re-enter on a new phone, for a board whose whole appeal is that it takes ten seconds.
+So writing is open to anyone with the link, the same as reading always was. The cost
+is real and worth naming: a stranger who finds the domain can add rows and upload
+photos. The password is not gone from the code, only unset — one command puts it back
+if that ever stops being theoretical, and HANDOFF has it.
 
 ## Design
 

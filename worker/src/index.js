@@ -38,7 +38,8 @@ export default {
         return await exportCsv(env);
       }
       // With SOCIAL off the chat is not just hidden, it is not reachable.
-      if (path === '/api/chat' || path === '/api/chat/delete' || path.startsWith('/img/')) {
+      // /img/ stays open either way — activity photos are served from it too.
+      if (path === '/api/chat' || path === '/api/chat/delete') {
         if (!config(env).social) return json({ error: 'Not found' }, 404);
       }
       if (path === '/api/chat' && request.method === 'GET') {
@@ -107,7 +108,7 @@ function daysBetween(start, end) {
 async function readState(env) {
   const [people, entries] = await Promise.all([
     env.DB.prepare('SELECT name, color FROM people ORDER BY created ASC').all(),
-    env.DB.prepare('SELECT id, who, date, miles, note, ts FROM entries ORDER BY date DESC, ts DESC').all(),
+    env.DB.prepare('SELECT id, who, date, miles, note, img, w, h, ts FROM entries ORDER BY date DESC, ts DESC').all(),
   ]);
   return {
     config: config(env),
@@ -142,14 +143,19 @@ async function addEntry(request, env) {
   const note = String(body.note || '').trim().slice(0, MAX_NOTE);
   const now = Date.now();
 
+  const photo = await takePhoto(body, env, now);
+  if (photo instanceof Response) return photo;
+
   const name = await joinPerson(who, env, now);
 
   const id = now.toString(36) + Math.random().toString(36).slice(2, 8);
-  await env.DB.prepare('INSERT INTO entries (id, who, date, miles, note, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
-    .bind(id, name, date, Math.round(miles * 100) / 100, note, now)
+  await env.DB
+    .prepare('INSERT INTO entries (id, who, date, miles, note, img, w, h, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)')
+    .bind(id, name, date, Math.round(miles * 100) / 100, note,
+      photo ? photo.id : null, photo ? photo.w : null, photo ? photo.h : null, now)
     .run();
 
-  return json({ ok: true, id });
+  return json({ ok: true, id, img: photo ? photo.id : null });
 }
 
 async function deleteEntry(request, env) {
@@ -162,7 +168,9 @@ async function deleteEntry(request, env) {
   const id = String(body.id || '');
   if (!id) return json({ error: 'Which entry?' }, 400);
 
+  const row = await env.DB.prepare('SELECT img FROM entries WHERE id = ?1').bind(id).first();
   await env.DB.prepare('DELETE FROM entries WHERE id = ?1').bind(id).run();
+  await dropPhoto(row && row.img, env);
   // Drop anyone left with nothing at all so the board does not carry ghosts.
   // Someone who has only ever chatted stays — they are still in the group.
   await env.DB.prepare(
@@ -194,33 +202,20 @@ async function addMessage(request, env) {
   if (!who) return json({ error: 'Pick who you are first.' }, 400);
 
   const text = String(body.body || '').trim().slice(0, MAX_MSG);
-  const photo = body.image ? decodeDataUrl(String(body.image)) : null;
-  if (body.image && !photo) {
-    return json({ error: 'That photo did not come through. Try a JPEG or PNG.' }, 400);
-  }
-  if (photo && photo.bytes.length > MAX_IMAGE_BYTES) {
-    return json({ error: 'That photo is too big. Under 1 MB, please.' }, 400);
-  }
-  if (!text && !photo) return json({ error: 'Write something, or add a photo.' }, 400);
+  if (!text && !body.image) return json({ error: 'Write something, or add a photo.' }, 400);
 
   const now = Date.now();
+  const photo = await takePhoto(body, env, now);
+  if (photo instanceof Response) return photo;
+
   const name = await joinPerson(who, env, now);
-
-  let imgId = null;
-  if (photo) {
-    imgId = 'i' + now.toString(36) + Math.random().toString(36).slice(2, 8);
-    await env.DB.prepare('INSERT INTO images (id, mime, bytes, ts) VALUES (?1, ?2, ?3, ?4)')
-      .bind(imgId, photo.mime, photo.bytes.buffer, now)
-      .run();
-  }
-
   const id = 'm' + now.toString(36) + Math.random().toString(36).slice(2, 8);
   await env.DB
     .prepare('INSERT INTO messages (id, who, body, img, w, h, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)')
-    .bind(id, name, text, imgId, dim(body.w), dim(body.h), now)
+    .bind(id, name, text, photo ? photo.id : null, photo ? photo.w : null, photo ? photo.h : null, now)
     .run();
 
-  return json({ ok: true, id, img: imgId });
+  return json({ ok: true, id, img: photo ? photo.id : null });
 }
 
 async function deleteMessage(request, env) {
@@ -235,9 +230,7 @@ async function deleteMessage(request, env) {
 
   const row = await env.DB.prepare('SELECT img FROM messages WHERE id = ?1').bind(id).first();
   await env.DB.prepare('DELETE FROM messages WHERE id = ?1').bind(id).run();
-  if (row && row.img) {
-    await env.DB.prepare('DELETE FROM images WHERE id = ?1').bind(row.img).run();
-  }
+  await dropPhoto(row && row.img, env);
   return json({ ok: true });
 }
 
@@ -252,6 +245,30 @@ async function serveImage(id, env) {
       'cache-control': 'public, max-age=31536000, immutable',
     },
   });
+}
+
+/**
+ * Takes the optional `image` off a request body and stores it, returning
+ * {id, w, h} — or an error Response, or null when there was no photo.
+ * Shared by miles and chat so both accept exactly the same thing.
+ */
+async function takePhoto(body, env, now) {
+  if (!body.image) return null;
+  const photo = decodeDataUrl(String(body.image));
+  if (!photo) return json({ error: 'That photo did not come through. Try a JPEG or PNG.' }, 400);
+  if (photo.bytes.length > MAX_IMAGE_BYTES) {
+    return json({ error: 'That photo is too big. Under 1 MB, please.' }, 400);
+  }
+  const id = 'i' + now.toString(36) + Math.random().toString(36).slice(2, 8);
+  await env.DB.prepare('INSERT INTO images (id, mime, bytes, ts) VALUES (?1, ?2, ?3, ?4)')
+    .bind(id, photo.mime, photo.bytes.buffer, now)
+    .run();
+  return { id, w: dim(body.w), h: dim(body.h) };
+}
+
+/** Drop a photo nothing points at any more. Safe to call with a null id. */
+async function dropPhoto(id, env) {
+  if (id) await env.DB.prepare('DELETE FROM images WHERE id = ?1').bind(id).run();
 }
 
 /** D1 hands BLOB columns back as a plain number array; older shapes still work. */
@@ -353,9 +370,12 @@ function json(data, status = 200) {
 }
 
 async function exportCsv(env) {
-  const rows = await env.DB.prepare('SELECT date, who, miles, note FROM entries ORDER BY date ASC, ts ASC').all();
-  const csv = ['date,who,miles,note']
-    .concat((rows.results || []).map((r) => [r.date, csvCell(r.who), r.miles, csvCell(r.note)].join(',')))
+  const rows = await env.DB
+    .prepare('SELECT date, who, miles, note, img FROM entries ORDER BY date ASC, ts ASC')
+    .all();
+  const csv = ['date,who,miles,note,photo']
+    .concat((rows.results || []).map((r) =>
+      [r.date, csvCell(r.who), r.miles, csvCell(r.note), r.img ? '/img/' + r.img : ''].join(',')))
     .join('\n');
   return new Response(csv + '\n', {
     headers: {

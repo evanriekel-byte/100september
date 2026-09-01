@@ -276,6 +276,16 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--brand);outline-o
 .sendbtn{color:#fff;background:linear-gradient(110deg,var(--brand-a),var(--brand-b));border:1px solid transparent;transition:filter .12s ease}
 .sendbtn:hover{filter:brightness(1.09)}
 .sendbtn:disabled{opacity:.45;cursor:default;filter:none}
+.photobtn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-bottom:12px;
+  font-family:var(--display);font-variation-settings:"wdth" 100;font-weight:700;font-size:11px;
+  letter-spacing:.11em;text-transform:uppercase;color:var(--ink-2);background:var(--surface-2);
+  border:1px solid var(--line);border-radius:2px;padding:9px 12px;cursor:pointer}
+.photobtn:hover{color:var(--ink);border-color:var(--ink-3)}
+.photobtn svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.thumb{flex:none;width:30px;height:30px;object-fit:cover;border-radius:2px;background:var(--surface-2);
+  border:1px solid var(--line-2);cursor:zoom-in}
+.hnote .thumb{display:inline-block;vertical-align:-10px;margin-right:9px}
+.card.drop{outline:2px dashed var(--brand);outline-offset:-5px}
 .lightbox{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:18px;background:var(--scrim);cursor:zoom-out}
 .lightbox img{max-width:100%;max-height:100%;border-radius:3px}
 
@@ -321,7 +331,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     <section class="view" id="view-log">
       <section class="stats three" id="youstats" aria-label="Your progress"></section>
       <div class="loggrid">
-        <div class="card logcard">
+        <div class="card logcard" id="logcard">
           <div class="sec-head" style="margin-bottom:14px"><h2>Log an activity</h2><span class="sec-note live"><i></i><span id="livelbl">live</span></span></div>
           <form id="logform" autocomplete="off">
             <label class="field"><span class="lbl">Who</span>
@@ -336,6 +346,16 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
             </div>
             <label class="field"><span class="lbl">Note <span style="text-transform:none;letter-spacing:0">(optional)</span></span>
               <input id="note" type="text" placeholder="hills, felt great" maxlength="60"></label>
+            <div class="attach" id="lattach" hidden>
+              <img id="lattachimg" alt="Photo you are about to attach">
+              <span id="lattachnote"></span>
+              <button class="linkbtn" type="button" id="lattachdrop">remove</button>
+            </div>
+            <button class="photobtn" type="button" id="lpick">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.8 8.4h3l1.6-2.2h7.2l1.6 2.2h3a.9.9 0 0 1 .9.9v9a.9.9 0 0 1-.9.9H3.8a.9.9 0 0 1-.9-.9v-9a.9.9 0 0 1 .9-.9z"></path><circle cx="12" cy="13.4" r="3.2"></circle></svg>
+              <span id="lpicklbl">Add a photo</span>
+            </button>
+            <input type="file" id="lfile" accept="image/*" hidden>
             <label class="field" id="pwwrap" hidden><span class="lbl">Group password</span>
               <input id="pw" type="password" placeholder="ask whoever set this up" maxlength="64"></label>
             <button class="btn" id="save" type="submit">Add miles</button>
@@ -384,13 +404,13 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
               <input id="cnewname" type="text" placeholder="First name" maxlength="24" aria-label="Your name" hidden>
               <button class="linkbtn" type="button" id="ccancel" hidden>cancel</button>
             </div>
-            <div class="attach" id="attach" hidden>
-              <img id="attachimg" alt="Photo you are about to send">
-              <span id="attachnote"></span>
-              <button class="rm" type="button" id="attachdrop">remove</button>
+            <div class="attach" id="cattach" hidden>
+              <img id="cattachimg" alt="Photo you are about to send">
+              <span id="cattachnote"></span>
+              <button class="linkbtn" type="button" id="cattachdrop">remove</button>
             </div>
             <div class="crow">
-              <button class="iconbtn" type="button" id="pickimg" aria-label="Add a photo" title="Add a photo">
+              <button class="iconbtn" type="button" id="cpick" aria-label="Add a photo" title="Add a photo">
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.8 8.4h3l1.6-2.2h7.2l1.6 2.2h3a.9.9 0 0 1 .9.9v9a.9.9 0 0 1-.9.9H3.8a.9.9 0 0 1-.9-.9v-9a.9.9 0 0 1 .9-.9z"></path><circle cx="12" cy="13.4" r="3.2"></circle></svg>
               </button>
               <textarea id="chatbody" rows="1" maxlength="500" placeholder="Say something to the group"></textarea>
@@ -398,7 +418,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
                 <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12.2 20 4l-7.4 16-2.2-6.6z"></path></svg>
               </button>
             </div>
-            <input type="file" id="file" accept="image/*" hidden>
+            <input type="file" id="cfile" accept="image/*" hidden>
             <label class="field" id="cpwwrap" hidden style="margin:11px 0 0"><span class="lbl">Group password</span>
               <input id="cpw" type="password" placeholder="ask whoever set this up" maxlength="64"></label>
             <div class="status" id="cstatus"></div>
@@ -423,7 +443,6 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   var feedAll = false;
   var feedWho = '';
   var busy = false, chatBusy = false;
-  var pending = null;        /* photo staged in the composer */
   var chatSig = '', chatTimer = null;
   var chatPick = false;      /* composer is asking who you are, rather than assuming */
 
@@ -682,6 +701,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
       ? '<ul class="feed">' + shown.map(function(e){
           return '<li class="ev">' +
             '<span class="dot" style="background:' + esc(colorOf(e.who)) + '"></span>' +
+            thumb(e) +
             '<span class="ev-txt"><b>' + esc(e.who) + '</b> ' + num(e.miles) + ' ' + esc(S.config.unit) +
               (e.note ? ' <span class="note">— ' + esc(e.note) + '</span>' : '') + '</span>' +
             '<span class="ev-when">' + esc(shortDate(e.date)) + '</span>' +
@@ -714,7 +734,8 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
       $('histnote').textContent = '';
       $('histfacts').innerHTML = '';
       $('histwrap').innerHTML = '<div class="hist"><div class="empty"><b>Nothing of yours yet</b>' +
-        'Log your first activity and it lands here, with your streak and your daily average.</div></div>';
+        'Log your first activity and it lands here, with your streak, your daily average, ' +
+        'and any photo you attached.</div></div>';
       return;
     }
 
@@ -747,7 +768,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
           return '<li class="hrow">' +
             '<span class="hdate">' + esc(shortDate(e.date)) + '</span>' +
             '<span class="hmiles">' + num(e.miles) + '<small>' + esc(c.unit) + '</small></span>' +
-            '<span class="hnote">' + (e.note ? esc(e.note) : '') + '</span>' +
+            '<span class="hnote">' + thumb(e) + (e.note ? esc(e.note) : '') + '</span>' +
             '<button class="rm" type="button" data-kind="entry" data-id="' + esc(e.id) + '" aria-label="Remove this activity">×</button>' +
           '</li>';
         }).join('') + '</ul>'
@@ -813,8 +834,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
         chatSig = sig;
         paintChat(force);
         markSeen();
-      })
-      .catch(function(){ connected(false); });
+      }, function(){ connected(false); });
   }
 
   function newest(){ return M.length ? M[M.length - 1].ts : 0; }
@@ -904,25 +924,73 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     img.src = url;
   }
 
-  function stagePhoto(file){
-    csay('Preparing the photo...');
-    shrink(file, function(p, err){
-      if (!p){ csay(err, true); return; }
-      pending = p;
-      $('attachimg').src = p.data;
-      $('attachnote').textContent = p.w + '×' + p.h + ' · ' + Math.max(1, Math.round(p.bytes / 1024)) + ' KB';
-      $('attach').hidden = false;
-      $('pickimg').setAttribute('aria-pressed', 'true');
-      csay('');
-      $('chatbody').focus();
+  /* One photo control, used by both the miles form and the chat composer.
+     Wires its own button, file input, preview and drop zone, and hands back
+     whatever is staged. */
+  function photoPicker(o){
+    var held = null;
+
+    function stage(file){
+      o.say('Preparing the photo...');
+      shrink(file, function(p, err){
+        if (!p){ o.say(err, true); return; }
+        held = p;
+        $(o.img).src = p.data;
+        $(o.note).textContent = p.w + '×' + p.h + ' · ' + Math.max(1, Math.round(p.bytes / 1024)) + ' KB';
+        $(o.wrap).hidden = false;
+        if (o.label) $(o.label).textContent = 'Replace the photo';
+        o.say('');
+        if (o.after) $(o.after).focus();
+      });
+    }
+
+    function clear(){
+      held = null;
+      $(o.wrap).hidden = true;
+      $(o.img).removeAttribute('src');
+      $(o.file).value = '';
+      if (o.label) $(o.label).textContent = 'Add a photo';
+      if (o.btn) $(o.btn).setAttribute('aria-pressed', 'false');
+    }
+
+    $(o.btn).addEventListener('click', function(){ $(o.file).click(); });
+    $(o.file).addEventListener('change', function(){
+      if (this.files && this.files[0]) stage(this.files[0]);
     });
+    $(o.drop).addEventListener('click', function(){ clear(); o.say(''); });
+
+    if (o.zone){
+      var zone = $(o.zone);
+      ['dragenter','dragover'].forEach(function(ev){
+        zone.addEventListener(ev, function(e){ e.preventDefault(); zone.classList.add('drop'); });
+      });
+      ['dragleave','drop'].forEach(function(ev){
+        zone.addEventListener(ev, function(e){ e.preventDefault(); zone.classList.remove('drop'); });
+      });
+      zone.addEventListener('drop', function(e){
+        var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+        if (f) stage(f);
+      });
+    }
+
+    return { stage: stage, clear: clear, get: function(){ return held; } };
   }
-  function clearPhoto(){
-    pending = null;
-    $('attach').hidden = true;
-    $('attachimg').removeAttribute('src');
-    $('file').value = '';
-    $('pickimg').setAttribute('aria-pressed', 'false');
+
+  var logPhoto = photoPicker({
+    file: 'lfile', btn: 'lpick', wrap: 'lattach', img: 'lattachimg',
+    note: 'lattachnote', drop: 'lattachdrop', label: 'lpicklbl',
+    zone: 'logcard', say: function(m, e){ say(m, e); }
+  });
+  var chatPhoto = photoPicker({
+    file: 'cfile', btn: 'cpick', wrap: 'cattach', img: 'cattachimg',
+    note: 'cattachnote', drop: 'cattachdrop', after: 'chatbody',
+    zone: 'chatcard', say: function(m, e){ csay(m, e); }
+  });
+
+  /** The photo on an entry or a message, as a thumbnail that opens full size. */
+  function thumb(m){
+    if (!m.img) return '';
+    return '<img class="thumb" src="/img/' + esc(m.img) + '" alt="Photo" loading="lazy">';
   }
 
   /* The composer posts as this device's own name rather than offering a menu of
@@ -959,23 +1027,24 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
       return;
     }
     var text = $('chatbody').value.trim();
-    if (!text && !pending){ csay('Write something, or add a photo.', true); return; }
+    var shot = chatPhoto.get();
+    if (!text && !shot){ csay('Write something, or add a photo.', true); return; }
 
     var key = $('cpw').value || ls('hms.key') || '';
-    setChatBusy(true); csay(pending ? 'Sending the photo...' : 'Sending...');
+    setChatBusy(true); csay(shot ? 'Sending the photo...' : 'Sending...');
 
     post('/api/chat', {
       who: who, body: text, key: key,
-      image: pending ? pending.data : null,
-      w: pending ? pending.w : null,
-      h: pending ? pending.h : null
+      image: shot ? shot.data : null,
+      w: shot ? shot.w : null,
+      h: shot ? shot.h : null
     }).then(function(){
       if (key) ls('hms.key', key);
       ls('hms.me', who);
       $('chatbody').value = ''; grow();
       $('cpw').value = ''; $('cpwwrap').hidden = true;
       $('pw').value = ''; $('pwwrap').hidden = true;
-      clearPhoto();
+      chatPhoto.clear();
       chatPick = false; paintChatWho();
       setChatBusy(false); csay('');
       // Board first: a brand-new poster has only just been given their colour.
@@ -1034,8 +1103,11 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
         // The nav is drawn before config lands, so settle the route once it has.
         if (first) onHash();
         paint();
-      })
-      .catch(function(){ connected(false); });
+      }, function(){
+        // Two-argument then on purpose: this handles a failed fetch, and only a
+        // failed fetch. A bug in paint() must not be reported as "offline".
+        connected(false);
+      });
   }
 
   function post(path, body){
@@ -1085,17 +1157,25 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     }
 
     var key = $('pw').value || ls('hms.key') || '';
-    setBusy(true); say('Saving...');
+    var shot = logPhoto.get();
+    setBusy(true); say(shot ? 'Uploading the photo...' : 'Saving...');
 
-    post('/api/entries', { who: who, date: date, miles: miles, note: $('note').value, key: key })
+    post('/api/entries', {
+      who: who, date: date, miles: miles, note: $('note').value, key: key,
+      image: shot ? shot.data : null,
+      w: shot ? shot.w : null,
+      h: shot ? shot.h : null
+    })
       .then(function(){
         if (key) ls('hms.key', key);
         ls('hms.me', who);
         $('miles').value = ''; $('note').value = ''; $('newname').value = '';
         $('pw').value = ''; $('pwwrap').hidden = true;
         $('cpw').value = ''; $('cpwwrap').hidden = true;
+        logPhoto.clear();
         setBusy(false);
-        say('Logged ' + num(miles) + ' ' + c.unit + ' for ' + who + '.');
+        say('Logged ' + num(miles) + ' ' + c.unit + ' for ' + who +
+          (shot ? ', photo and all.' : '.'));
         return load();
       })
       .catch(function(err){ setBusy(false); fail(err, 'log'); });
@@ -1121,7 +1201,10 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     var t = e.target;
 
     if (t.id === 'morebtn'){ feedAll = !feedAll; paintFeed(); return; }
-    if (t.classList && t.classList.contains('photo')){ openPhoto(t.getAttribute('src')); return; }
+    if (t.classList && (t.classList.contains('photo') || t.classList.contains('thumb'))){
+      openPhoto(t.getAttribute('src'));
+      return;
+    }
 
     var f = t.closest ? t.closest('.fbtn') : null;
     if (f){
@@ -1135,7 +1218,6 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     var btn = t.closest ? t.closest('.rm') : null;
     if (!btn) return;
 
-    if (btn.id === 'attachdrop'){ clearPhoto(); csay(''); return; }
     if (busy || chatBusy) return;
 
     // Two clicks to remove: the first arms the button for four seconds.
@@ -1191,11 +1273,6 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     $('chatbody').focus();
   });
 
-  $('pickimg').addEventListener('click', function(){ $('file').click(); });
-  $('file').addEventListener('change', function(){
-    if (this.files && this.files[0]) stagePhoto(this.files[0]);
-  });
-
   $('chatbody').addEventListener('input', grow);
   $('chatbody').addEventListener('keydown', function(e){
     if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); $('chatform').requestSubmit ? $('chatform').requestSubmit() : sendChat(e); }
@@ -1205,20 +1282,9 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     for (var i = 0; i < items.length; i++){
       if (items[i].type.indexOf('image/') === 0){
         var f = items[i].getAsFile();
-        if (f){ e.preventDefault(); stagePhoto(f); return; }
+        if (f){ e.preventDefault(); chatPhoto.stage(f); return; }
       }
     }
-  });
-
-  ['dragenter','dragover'].forEach(function(ev){
-    $('chatcard').addEventListener(ev, function(e){ e.preventDefault(); this.classList.add('drop'); });
-  });
-  ['dragleave','drop'].forEach(function(ev){
-    $('chatcard').addEventListener(ev, function(e){ e.preventDefault(); this.classList.remove('drop'); });
-  });
-  $('chatcard').addEventListener('drop', function(e){
-    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (f) stagePhoto(f);
   });
 
   $('lightbox').addEventListener('click', closePhoto);

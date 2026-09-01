@@ -10,6 +10,9 @@ CREATE TABLE IF NOT EXISTS entries (
   date  TEXT NOT NULL,
   miles REAL NOT NULL,
   note  TEXT NOT NULL DEFAULT '',
+  img   TEXT,
+  w     INTEGER,
+  h     INTEGER,
   ts    INTEGER NOT NULL
 );
 
@@ -29,7 +32,8 @@ CREATE TABLE IF NOT EXISTS messages (
 
 CREATE INDEX IF NOT EXISTS idx_messages_ts ON messages(ts DESC);
 
--- Photos posted to chat, already downscaled by the browser before upload.
+-- Photos, already downscaled by the browser before upload. Shared by activity
+-- entries and chat messages; entries.img and messages.img both point in here.
 CREATE TABLE IF NOT EXISTS images (
   id    TEXT PRIMARY KEY,
   mime  TEXT NOT NULL,

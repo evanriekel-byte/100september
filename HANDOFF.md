@@ -30,6 +30,7 @@ forgotten it gets rotated, not recovered.
 worker/
   wrangler.toml     config + the challenge itself (see "Change the rules")
   schema.sql        four tables; safe to re-run, everything is IF NOT EXISTS
+  migrate.sql       one-off ALTERs for a database older than a feature
   src/index.js      router, JSON API, validation, auth, chat, images, CSV export
   src/page.js       the ENTIRE client — markup, CSS and JS as one exported string
   src/assets.js     GENERATED: icon SVGs, base64 PNGs, web manifest
@@ -111,12 +112,26 @@ string, and the API takes whatever `who` it is handed. The real fix is unchanged
 **per-person PINs** — and it is the same fix the miles form has been putting off since
 the start. Decide whether a group of friends needs it before flipping `SOCIAL` on.
 
-**Rotate the password** — `npx wrangler secret put PASSPHRASE`. Everyone is asked
-once more the next time they log miles. Removing the secret entirely makes writes
-open to anyone with the link.
+**The password is a switch, and it is currently off.** There is no `PASSPHRASE`
+secret set, so `config.locked` is false, the password fields never render, and
+anyone with the link can log miles and attach photos. Nothing in the code was
+removed — `authorize()` simply returns early when the secret is absent.
+
+```sh
+npx wrangler secret put PASSPHRASE      # lock writes again, asked once per device
+npx wrangler secret delete PASSPHRASE   # open writes to anyone with the link
+```
+
+Worth knowing what open writes now cost, since activities carry photos:
+`septembermiles.com` is a short public domain, and a stranger who finds it can write
+rows and upload images into your D1. For a family board that is a fine trade against
+asking five people for a password. If it is ever abused, `secret put` takes effect on
+the next request — no deploy, no code change — and everyone re-enters it once.
 
 **Back up** — `curl https://septembermiles.com/api/export.csv > miles.csv`. Worth
-doing once a week during the challenge; it is the whole log in four columns.
+doing once a week during the challenge; it is the whole log in five columns. The
+`photo` column holds each entry's `/img/<id>` path, not the image — the CSV is not a
+backup of the photos themselves.
 
 **Restore** — D1 keeps point-in-time restore. Check `npx wrangler d1 time-travel --help`
 for the current syntax before relying on it.
@@ -127,6 +142,13 @@ for the current syntax before relying on it.
 **Add the chat tables to a database created before they existed** — `npm run db:remote`.
 The whole schema is `IF NOT EXISTS`, so it adds `messages` and `images` and leaves
 `people` and `entries` alone.
+
+**Add photo columns to an `entries` table that predates them** — `npm run db:migrate`.
+`IF NOT EXISTS` cannot add a column to a table that already exists, so the three
+`ALTER TABLE` statements live in `migrate.sql` instead. Run it once. A second run
+fails with "duplicate column name" and D1 rolls the whole file back, so the mistake
+costs nothing but the error message. A database created from `schema.sql` today
+already has the columns and never needs this.
 
 **This is required even with `SOCIAL = "off"`.** `deleteEntry` reads `messages` to
 decide whether someone still belongs on the board, so removing an entry against a
@@ -142,14 +164,15 @@ readable message.
 |---|---|---|---|
 | GET | `/` | | the board |
 | GET | `/api/state` | | `{config, people, entries}` — everything the board renders from |
-| POST | `/api/entries` | `{who, date, miles, note, key}` | 401 on bad `key`, 400 on bad input |
+| POST | `/api/entries` | `{who, date, miles, note, image, w, h, key}` | `image` is a data URL, or omitted |
 | POST | `/api/entries/delete` | `{id, key}` | |
 | GET | `/api/chat` | | `{messages}` — the last 200, oldest first |
 | POST | `/api/chat` | `{who, body, image, w, h, key}` | `image` is a data URL, or omitted |
 | POST | `/api/chat/delete` | `{id, key}` | also drops the message's photo |
-| GET | `/img/<id>` | | one chat photo, cached immutable for a year |
+| GET | `/img/<id>` | | one photo, from an entry or a message, cached immutable for a year |
 
-The four chat routes 404 unless `SOCIAL = "on"`.
+The three `/api/chat*` routes 404 unless `SOCIAL = "on"`. `/img/` is not gated —
+activity photos are served from it with the chat switched off.
 | GET | `/api/export.csv` | | full log, no auth |
 | GET | `/healthz` | | `ok` |
 
@@ -164,11 +187,16 @@ Plus `/favicon.svg`, `/icon.svg`, `/apple-touch-icon.png`, `/icon-192.png`,
 ```sql
 people   (name TEXT PRIMARY KEY COLLATE NOCASE, color TEXT, created INTEGER)
 entries  (id TEXT PRIMARY KEY, who TEXT COLLATE NOCASE, date TEXT, miles REAL,
-          note TEXT, ts INTEGER)
+          note TEXT, img TEXT, w INTEGER, h INTEGER, ts INTEGER)
 messages (id TEXT PRIMARY KEY, who TEXT COLLATE NOCASE, body TEXT, img TEXT,
           w INTEGER, h INTEGER, ts INTEGER)
 images   (id TEXT PRIMARY KEY, mime TEXT, bytes BLOB, ts INTEGER)
 ```
+
+`images` is shared: `entries.img` and `messages.img` both point into it, and one
+`takePhoto` / `dropPhoto` pair on the server handles both, so miles and chat accept
+byte-for-byte the same thing. Deleting either row deletes its photo, so nothing is
+ever orphaned.
 
 Rules enforced server-side in `addEntry`:
 
@@ -181,15 +209,18 @@ Rules enforced server-side in `addEntry`:
 - Deleting someone's last entry prunes them from `people` **only if they have no
   messages either**. If they come back they may be assigned a different color.
 
-And in `addMessage`:
+Both `addEntry` and `addMessage` also take an optional photo:
 
-- Body ≤ 500 chars. A message needs a body, a photo, or both.
 - `image` is a `data:` URL; only `image/jpeg`, `png`, `webp` and `gif` are accepted,
   and only up to 1 MB decoded. The browser downscales to a 1280 px longest edge and
   steps JPEG quality down until it is under ~420 KB, so that ceiling is a backstop
   for anything posting straight to the API.
-- `messages.img` is the `images.id`. Deleting a message deletes its photo; nothing
-  else references it.
+- `w` and `h` are the downscaled dimensions, stored so a thumbnail reserves its space
+  before the image loads.
+
+And in `addMessage` specifically:
+
+- Body ≤ 500 chars. A message needs a body, a photo, or both.
 
 Client state that is not on the server: `localStorage` holds `hms.me` (which name is
 yours, for the "you" tag, the form default, which chat bubbles are yours, and who the
@@ -259,16 +290,21 @@ Worth re-running by hand after any change to `page.js` or `index.js`.
 - **Honor-system identity.** Anyone can log as anyone. See OVERVIEW for why.
 - **One shared password, no rate limiting.** Guesses are unlimited. Adequate for a
   private link shared with friends; not adequate if the URL goes public.
-- **No editing an entry** — delete it and add it again.
+
 - **Dates are the viewer's local date.** Someone logging near midnight in another
   timezone may pick a different "today" than the board's other users. Harmless here.
-- **No backups run automatically.** The CSV export is manual, and it covers miles
-  only — chat messages and photos are not in it.
+- **No backups run automatically.** The CSV export is manual, it names photos but
+  does not contain them, and chat messages are not in it at all.
+- **Writes are open.** No password is set; see "The password is a switch" above.
 - **Photos live in D1, not R2.** That keeps the whole app on one binding and inside
   the free tier, but D1 is not built to be a photo store. At a few hundred photos it
   is fine. If the group ever fills it up, move `images` to an R2 bucket: only
-  `addMessage` and `serveImage` touch the bytes.
-- **Chat has no editing and no read receipts,** and the unseen dot is per-device.
+  `takePhoto`, `dropPhoto` and `serveImage` touch the bytes.
+- **A thumbnail is the full photo, scaled by CSS.** Only one size is stored, so a
+  history row with ten photos downloads ten full images. At ~150 KB each and this
+  many entries it does not matter; at a thousand it would.
+- **No editing, for miles or messages** — delete it and add it again. That includes
+  swapping a photo on an entry that is already logged.
 - **The chat ships off** (`SOCIAL = "off"`). The composer is locked to the device's
   own name, which stops the accidental and the casual, but `hms.me` is only
   `localStorage` and the API trusts the `who` it is given. See "Turning the chat on".
