@@ -7,8 +7,10 @@
 -- schema.sql already carries these columns, so a board created from scratch
 -- needs nothing here.
 --
--- Run it BEFORE deploying the code that reads them: readState selects both
--- columns, so the board 500s against a database that has not been migrated.
+-- Order does not matter. The Worker falls back to the pre-attribution shape of
+-- every query, so a deploy that lands before this still serves the board and
+-- still takes miles; it just cannot record who typed them until this runs, and
+-- picks that up the moment it does.
 
 ALTER TABLE entries ADD COLUMN logged_by TEXT;
 ALTER TABLE entries ADD COLUMN device    TEXT;

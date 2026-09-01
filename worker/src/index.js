@@ -161,9 +161,13 @@ function daysBetween(start, end) {
 /* ---------- reads ---------- */
 
 async function readState(env) {
+  const ORDER = ' FROM entries ORDER BY date DESC, ts DESC';
   const [people, entries] = await Promise.all([
     env.DB.prepare('SELECT name, color FROM people ORDER BY created ASC').all(),
-    env.DB.prepare('SELECT id, who, date, miles, note, ts, logged_by, device FROM entries ORDER BY date DESC, ts DESC').all(),
+    unmigrated(
+      () => env.DB.prepare('SELECT id, who, date, miles, note, ts, logged_by, device' + ORDER).all(),
+      () => env.DB.prepare('SELECT id, who, date, miles, note, ts' + ORDER).all()
+    ),
   ]);
   return {
     config: config(env),
@@ -217,11 +221,21 @@ async function addEntry(request, env) {
   const dev = DEVICE_RE.test(rawDev) ? rawDev : null;
 
   const id = now.toString(36) + Math.random().toString(36).slice(2, 8);
-  await env.DB.prepare(
-    'INSERT INTO entries (id, who, date, miles, note, ts, logged_by, device) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)'
-  )
-    .bind(id, name, date, Math.round(miles * 100) / 100, note, now, by || null, dev)
-    .run();
+  const miles2 = Math.round(miles * 100) / 100;
+  await unmigrated(
+    () =>
+      env.DB
+        .prepare('INSERT INTO entries (id, who, date, miles, note, ts, logged_by, device) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)')
+        .bind(id, name, date, miles2, note, now, by || null, dev)
+        .run(),
+    // Un-migrated: log the miles anyway. Losing the attribution on a handful of
+    // entries is a far smaller problem than nobody being able to log at all.
+    () =>
+      env.DB
+        .prepare('INSERT INTO entries (id, who, date, miles, note, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
+        .bind(id, name, date, miles2, note, now)
+        .run()
+  );
 
   return json({ ok: true, id });
 }
@@ -370,6 +384,22 @@ async function joinPerson(who, env, now) {
 
 /* ---------- helpers ---------- */
 
+/* Attribution added two columns to `entries`. Rather than make the deploy a
+   two-step where getting the order wrong takes the board down, every query
+   that wants them falls back to the shape without them. So a deploy that lands
+   before `npm run db:migrate` still serves the board and still accepts miles;
+   it just cannot record who typed them until the migration runs. Only a
+   missing column is caught -- any other D1 failure is still a real 500. */
+async function unmigrated(withColumns, without) {
+  try {
+    return await withColumns();
+  } catch (err) {
+    const msg = String((err && err.message) || err);
+    if (!/no such column|has no column named/i.test(msg)) throw err;
+    return await without();
+  }
+}
+
 function authorize(body, env) {
   const need = env.PASSPHRASE;
   if (!need) return null;
@@ -427,9 +457,11 @@ function json(data, status = 200) {
 }
 
 async function exportCsv(env) {
-  const rows = await env.DB
-    .prepare('SELECT date, who, miles, note, ts, logged_by FROM entries ORDER BY date ASC, ts ASC')
-    .all();
+  const ORDER = ' FROM entries ORDER BY date ASC, ts ASC';
+  const rows = await unmigrated(
+    () => env.DB.prepare('SELECT date, who, miles, note, ts, logged_by' + ORDER).all(),
+    () => env.DB.prepare('SELECT date, who, miles, note, ts' + ORDER).all()
+  );
   const csv = ['date,who,miles,note,logged_by,logged_at']
     .concat(
       (rows.results || []).map((r) =>

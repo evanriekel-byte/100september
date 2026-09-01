@@ -183,11 +183,18 @@ npx wrangler d1 execute DB --remote --command \
 ```
 
 **Migrating a board that predates attribution** — `npm run db:migrate` adds the
-two columns to an existing `entries` table. **Run it before deploying the code**:
-`readState` selects both columns, so an un-migrated database makes the whole
-board a 500. Run it once; a second run stops with `duplicate column name:
-logged_by`, which is SQLite saying it is already done. A board created fresh
-from `schema.sql` already has them and needs nothing.
+two columns to an existing `entries` table. Run it once; a second run stops with
+`duplicate column name: logged_by`, which is SQLite saying it is already done. A
+board created fresh from `schema.sql` already has them and needs nothing.
+
+**The order does not matter.** Every query that wants the new columns falls back
+to the shape without them (`unmigrated()` in `index.js`), so a deploy that lands
+first still serves the board and still accepts miles — it just cannot record who
+typed them until the migration runs, and it starts recording the moment it does,
+with no restart. Only a missing column is caught; any other D1 failure is still
+a real 500. This was deliberately made safe because the alternative was a
+sequenced two-step deploy where getting it backwards took the whole board down,
+and nobody should have to be careful about that from a phone.
 
 **Rotate the password** — `npx wrangler secret put PASSPHRASE`. Everyone is asked
 once more the next time they log miles. Removing the secret entirely makes writes
@@ -390,7 +397,8 @@ Worth re-running by hand after any change to `page.js` or `index.js`.
   It catches the mis-tap and the casual, which is what actually happens in a
   family group. **Per-person PINs remain the only real fix.** See OVERVIEW.
 - **Attribution starts from the day it shipped.** Entries logged before the
-  migration have no `logged_by` and never will; there is nothing in the old rows
+  migration — including any logged by a deploy that landed ahead of it — have no
+  `logged_by` and never will; there is nothing in the old rows
   to recover it from. The worker has never recorded an IP or a user-agent, and
   `[observability]` is off, so nothing else retained it either.
 - **One shared password, no rate limiting.** Guesses are unlimited. Adequate for a
