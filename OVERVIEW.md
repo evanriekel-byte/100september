@@ -74,6 +74,12 @@ on the Social tab means there is something you have not seen.
 | On pace | how many of us are holding our own 100 |
 | Miles logged | everyone's combined total, as a plain fact with no goal attached |
 
+The countdown in the masthead counts **today as still yours**: on the first of
+the month it reads 30 days left, on the last it reads 1, and only once the month
+is over does it reach 0. Everything derived from it agrees — on the final day the
+board asks for what you still owe *today* rather than declaring you short with
+the whole day ahead of you.
+
 **Everyone** — one row per person: their total against their own 100, a progress bar
 with quarter ticks, and an **orange line marking today's on-pace point**. Sitting
 right of the orange line means ahead; left means behind. Each row also carries a
@@ -83,6 +89,11 @@ your own commitment is the win condition, not out-running anyone.
 
 **Activity** — every entry, newest first, colored by person, with a two-click remove
 for typos. Capped at 24 with a "show all" toggle, and filterable to one person.
+
+You can backdate as far as the start — logging the week's runs on a Sunday is the
+normal way to use it — but not forward. Every number here weighs a total against
+the days that have actually passed, so a month logged on day one would read as a
+runaway lead rather than as the plan it is.
 
 Rows sort by total, so the board does read a little like a leaderboard. That is
 deliberate — seeing where you sit is most of why people open a shared board — but
@@ -114,6 +125,12 @@ password is not there to tell people apart — it only stops a stranger who stum
 on the URL from writing to the board. **Reading is open to anyone with the link**, and
 that now includes the chat and any photo posted to it.
 
+Because the link is the only door, the board asks not to be indexed — `noindex`
+on the page, `Disallow: /` in `robots.txt` — and never sends its own URL along in
+a `Referer`. That is a request to well-behaved crawlers rather than a fence, but
+it keeps a board of real names, notes and photos out of search results, which is
+the difference between a link you shared and a page anyone can find.
+
 ## Design
 
 The mark is an S drawn as two lanes with a gap running through it, tilted 8°, in a
@@ -135,6 +152,10 @@ an identity.
 The board is designed for both light and dark, and for phones first: navigation sits
 at the bottom where a thumb reaches, and the Log tab opens first, because logging is
 the thing you came to do.
+
+The link is meant to be texted around, so it carries its own preview card: the
+mark, the wordmark, the line under it, and the board's own progress bar with the
+orange on-pace tick — the one picture that says what the thing is.
 
 ---
 

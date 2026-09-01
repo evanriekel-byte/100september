@@ -34,6 +34,7 @@ worker/
   src/page.js       the ENTIRE client — markup, CSS and JS as one exported string
   src/assets.js     GENERATED: icon SVGs, base64 PNGs, web manifest
   brand/            source art the assets module is built from
+  brand/make-og.py  builds brand/og.png, the 1200x630 link-preview card
 tracker.html        RETIRED. The original Claude Artifact version, kept for reference
 ```
 
@@ -54,6 +55,20 @@ in the `VIEWS` array.
 
 `src/assets.js` is generated from `brand/`. Editing it by hand is fine for a one-off,
 but the art is the SVGs — regenerate rather than hand-patch base64.
+
+The one piece with a script of its own is the link-preview card:
+
+```sh
+pip install pillow
+python3 brand/make-og.py          # -> brand/og.png
+```
+
+It wants Archivo 800 semi-expanded, Public Sans 400 and IBM Plex Mono 400 in
+`brand/fonts/`; the header comment names the Google Fonts URLs. Without them it
+falls back to DejaVu and the card is legible but off-brand. The fonts are not in
+the repo. Fold the new bytes into the `PNGS` map in `src/assets.js` as base64
+under the key `og.png` — the router serves anything in that map by name, so no
+route change is needed.
 
 ## Deploy
 
@@ -111,12 +126,39 @@ string, and the API takes whatever `who` it is handed. The real fix is unchanged
 **per-person PINs** — and it is the same fix the miles form has been putting off since
 the start. Decide whether a group of friends needs it before flipping `SOCIAL` on.
 
+**Link previews** — `og:` and `canonical` tags in `page.js` carry an `__ORIGIN__`
+placeholder that `pageFor()` in `index.js` fills in from the request, cached per
+hostname. Nothing is hardcoded to `septembermiles.com`, so the `workers.dev`
+fallback and any self-hosted copy preview themselves. Changing the domain needs
+no code change. The card itself is `/og.png`; re-run `make-og.py` if the brand
+or the wording changes.
+
+**Search engines** — the page carries `noindex, nofollow` and `/robots.txt` is
+`Disallow: /`. Reading the board is open to anyone with the link, and the board
+carries real names, notes and any photo posted to the chat. The link is the
+door; a search result is a second one nobody chose to open. Delete both if you
+ever want the board found.
+
+**Security headers** — every response gets `nosniff`, `X-Frame-Options: DENY`
+and `Referrer-Policy: no-referrer` (the URL is the only thing gating writes, so
+it must not ride along in a `Referer`). The page also gets a CSP. Both the style
+block and the script are inline, so it needs `'unsafe-inline'` for each —
+hashing them would mean a build step, and there deliberately is not one. What it
+still buys is no script from anywhere else, no `eval`, no plugins, no framing.
+**If you add anything the page loads from a new place, the CSP has to learn about
+it or it fails silently.** `img-src` already covers `blob:` for exactly this
+reason: the composer reads a picked photo through `URL.createObjectURL` before
+the canvas downscales it.
+
 **Rotate the password** — `npx wrangler secret put PASSPHRASE`. Everyone is asked
 once more the next time they log miles. Removing the secret entirely makes writes
 open to anyone with the link.
 
 **Back up** — `curl https://septembermiles.com/api/export.csv > miles.csv`. Worth
-doing once a week during the challenge; it is the whole log in four columns.
+doing once a week during the challenge; it is the whole log in four columns. A
+name or note starting with `=`, `+`, `-` or `@` is written with a leading
+apostrophe, because that file exists to be opened in a spreadsheet and those are
+the characters Excel and Sheets read as a formula rather than as text.
 
 **Restore** — D1 keeps point-in-time restore. Check `npx wrangler d1 time-travel --help`
 for the current syntax before relying on it.
@@ -148,6 +190,7 @@ readable message.
 | POST | `/api/chat` | `{who, body, image, w, h, key}` | `image` is a data URL, or omitted |
 | POST | `/api/chat/delete` | `{id, key}` | also drops the message's photo |
 | GET | `/img/<id>` | | one chat photo, cached immutable for a year |
+| GET | `/robots.txt` | | `Disallow: /` |
 
 The four chat routes 404 unless `SOCIAL = "on"`.
 | GET | `/api/export.csv` | | full log, no auth |
@@ -157,7 +200,7 @@ Chat writes take the same group password as miles. Chat reads, like board reads,
 open to anyone with the link.
 
 Plus `/favicon.svg`, `/icon.svg`, `/apple-touch-icon.png`, `/icon-192.png`,
-`/icon-512.png`, `/icon-maskable.png`, `/site.webmanifest`.
+`/icon-512.png`, `/icon-maskable.png`, `/og.png`, `/site.webmanifest`.
 
 ## Data model
 
@@ -176,6 +219,12 @@ Rules enforced server-side in `addEntry`:
   against the existing `Evan`.
 - `0 < miles <= 80`, date must fall inside `START`..`END`, name ≤ 24 chars,
   note ≤ 60 chars.
+- **No future dates.** Every number on the board weighs a total against the days
+  that have actually passed, so a whole month logged on day one reads as a
+  runaway lead. The cap is today in UTC plus one day of slack, because "today"
+  is the viewer's local date and far enough east it genuinely is tomorrow. The
+  date picker stops at the viewer's own today, and is re-checked on every paint
+  so a tab left open overnight does not stay a day behind.
 - A name new to the board joins `people` and takes the next color in `COLORS`
   (`joinPerson`, shared with chat — posting a message is enough to join).
 - Deleting someone's last entry prunes them from `people` **only if they have no
@@ -220,6 +269,11 @@ you read the output.
    Answer Y; the following `deploy` fills it with real code and keeps the secret.
 6. **`Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)`** on Windows is Node
    noise on exit. It printed immediately before a successful login. Ignore it.
+7. **`wrangler dev` does not always pick up an edit to `[vars]`.** It reloads on
+   source changes, but a changed `GOAL`/`START`/`END`/`SOCIAL` can sit there
+   while `/api/state` keeps serving the old config, which looks exactly like the
+   code ignoring the setting. Restart it. To test a date the calendar is not on,
+   it is quicker to stub `/api/state` in the browser than to move the window.
 
 ## Verification done
 
@@ -252,6 +306,30 @@ Re-verified the same way after the three-page rebuild, plus:
 - Wrong password, empty message, non-image data URL, and two-click remove on both a
   message and an entry (one click never deletes).
 
+Re-verified again after the audit pass, driving a local `wrangler dev` with
+Playwright:
+
+- All three tabs at 1180px, 390px and 320px, light **and** dark: no horizontal
+  scroll, exactly one tab marked current, and **no CSP violations** in the
+  console. The CSP caught a real one on the way in — `img-src` without `blob:`
+  broke the photo composer, which is why that source is spelled out above.
+- The whole challenge lifecycle against the pace maths, by stubbing `/api/state`:
+  before the start, day 1, day 29, the last day, and after the end. The header,
+  the "To finish" tile and the leaderboard's right-hand column all read
+  correctly at each, including "1 day left" and "needs 60 today" on the final
+  day, where the old build said "0 days left" and called everyone short.
+- A future date rejected by the API and unreachable from the date picker; today
+  and one day of timezone slack still accepted.
+- A note of `=1+1+cmd|'/c calc'!A0` exported as `'=1+1+...`, inert in a spreadsheet.
+- With `SOCIAL = "on"`: a text message, a photo through the composer (staged,
+  downscaled, posted, served from `/img/<id>` and reopened in the lightbox),
+  Escape closing it, a message of `<img src=x onerror=alert(1)><script>` rendering
+  as inert text, and two-click remove.
+- `/og.png` served byte-identical to `brand/og.png`; `og:`/`canonical` tags
+  rewritten to whatever `Host` the request carried.
+- `/robots.txt`, `/healthz`, 404 handling, and the `<noscript>` line rendering in
+  both themes with scripting off.
+
 Worth re-running by hand after any change to `page.js` or `index.js`.
 
 ## Known limits
@@ -260,10 +338,16 @@ Worth re-running by hand after any change to `page.js` or `index.js`.
 - **One shared password, no rate limiting.** Guesses are unlimited. Adequate for a
   private link shared with friends; not adequate if the URL goes public.
 - **No editing an entry** — delete it and add it again.
+- **Entries can be backdated freely** inside the window. Future-dating is
+  blocked, but nothing stops someone entering last Tuesday today, which is the
+  point — you log the week's runs when you get round to it.
 - **Dates are the viewer's local date.** Someone logging near midnight in another
   timezone may pick a different "today" than the board's other users. Harmless here.
 - **No backups run automatically.** The CSV export is manual, and it covers miles
   only — chat messages and photos are not in it.
+- **`noindex` and `robots.txt` are requests, not a fence.** A well-behaved
+  crawler honours them; nothing stops anyone who has the link from sharing it.
+  Reading is still open by design.
 - **Photos live in D1, not R2.** That keeps the whole app on one binding and inside
   the free tier, but D1 is not built to be a photo store. At a few hundred photos it
   is fine. If the group ever fills it up, move `images` to an R2 bucket: only
@@ -279,6 +363,14 @@ Worth re-running by hand after any change to `page.js` or `index.js`.
 
 Roughly in order of value for effort: per-person PINs if the group ever outgrows the
 honor system; editable entries; a sort toggle (finished-first, or alphabetical, to
-soften the leaderboard read); an `og:image` so the link previews properly when it gets
-texted around; reactions on chat messages; photos on activity entries too, reusing the
-`images` table the chat already has.
+soften the leaderboard read); reactions on chat messages; photos on activity entries
+too, reusing the `images` table the chat already has.
+
+Two smaller ones the audit left on the table. The **on-pace mark counts today as
+already spent** — on the morning of day 1 it wants 3.33 miles from you and the
+board says everybody is behind. That matches the label ("miles each by today")
+so it was left alone, but "by the *end* of today" is a defensible reading and
+the gentler one. And the **unseen-message dot is repainted from the 30-second
+board poll**, which now costs a second request while the chat is on and you are
+looking at another tab; if that ever matters, a cheap `HEAD`-style endpoint
+returning just the newest timestamp would do the same job.

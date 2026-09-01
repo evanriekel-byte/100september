@@ -18,6 +18,22 @@ export const PAGE = `<!doctype html>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
+<link rel="canonical" href="__ORIGIN__/">
+<!-- The board is readable by anyone with the link, and it carries real names,
+     notes and photos. Keep it out of search results; the link is the door. -->
+<meta name="robots" content="noindex, nofollow">
+<!-- Link previews. __ORIGIN__ is filled in per request by src/index.js, so a
+     self-hosted copy previews itself rather than septembermiles.com. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="September Miles">
+<meta property="og:title" content="September Miles">
+<meta property="og:description" content="Everyone's own 100 miles in September, on one board.">
+<meta property="og:url" content="__ORIGIN__/">
+<meta property="og:image" content="__ORIGIN__/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="SEPTEMBERMILES.com - everyone's own 100 miles in September, on one board.">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#EEF1F6">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#090F20">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -108,7 +124,7 @@ h1{margin:0;display:flex;flex-wrap:wrap;align-items:baseline;font-family:var(--d
   font-size:9.5px;letter-spacing:.1em;text-transform:uppercase}
 .tab svg{width:21px;height:21px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .tab:hover{color:var(--ink-2)}
-.tab[aria-selected="true"]{color:var(--ink);border-top-color:var(--ink)}
+.tab[aria-current="page"]{color:var(--ink);border-top-color:var(--ink)}
 .newdot{position:absolute;top:6px;left:calc(50% + 8px);width:7px;height:7px;border-radius:50%;background:var(--blaze);border:2px solid var(--surface)}
 @media (min-width:760px){
   .nav{position:static;display:flex;gap:28px;margin-top:0;padding:0;
@@ -116,15 +132,12 @@ h1{margin:0;display:flex;flex-wrap:wrap;align-items:baseline;font-family:var(--d
   .tab{flex:0 0 auto;flex-direction:row;gap:8px;padding:12px 2px;margin:0 0 -1px;
     border-top:0;border-bottom:2px solid transparent;font-size:11px;letter-spacing:.13em}
   .tab svg{width:17px;height:17px}
-  .tab[aria-selected="true"]{border-top-color:transparent;border-bottom-color:var(--ink)}
+  .tab[aria-current="page"]{border-top-color:transparent;border-bottom-color:var(--ink)}
   .newdot{top:9px;left:auto;right:-11px;border-color:var(--bg)}
 }
 
 /* views */
 .view{display:flex;flex-direction:column;gap:28px;margin-top:24px}
-
-/* banner */
-.banner{margin-top:18px;padding:11px 14px;border:1px solid var(--line);border-left:3px solid var(--blaze);background:var(--surface);border-radius:var(--r);font-size:13.5px;color:var(--ink-2)}
 
 /* stat strip */
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
@@ -285,11 +298,14 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
 .live i{width:6px;height:6px;border-radius:50%;background:var(--pine);display:inline-block}
 .offline .live i{background:var(--blaze)}
 .boot{padding:40px 16px;text-align:center;color:var(--ink-3);font-family:var(--mono);font-size:12px}
-.readonly .rm,.readonly .logcard form,.readonly .composer{display:none}
+.nojs{margin:0;padding:13px clamp(14px,3vw,26px);background:var(--surface);border-bottom:1px solid var(--line);border-left:3px solid var(--blaze);font-size:13.5px;color:var(--ink-2)}
+.nojs a{color:var(--ink)}
 @media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
 </style>
 </head>
 <body>
+<noscript><div class="nojs">This board is drawn in the browser, so it needs JavaScript switched on.
+The whole log is also available as a plain file at <a href="/api/export.csv">/api/export.csv</a>.</div></noscript>
 <div class="wrap" id="root">
   <header class="masthead">
     <div class="brand">
@@ -303,18 +319,16 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   </header>
 
   <nav class="nav" id="nav" aria-label="Sections">
-    <a class="tab" href="#/log" data-view="log" role="tab" aria-selected="true">
+    <a class="tab" href="#/log" data-view="log" aria-current="page">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8.2v7.6M8.2 12h7.6"></path></svg>
       <span>Log</span></a>
-    <a class="tab" href="#/group" data-view="group" role="tab" aria-selected="false">
+    <a class="tab" href="#/group" data-view="group">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V13M10 20V4M16 20v-9M2 20h20"></path></svg>
       <span>Group</span></a>
-    <a class="tab" href="#/social" data-view="social" role="tab" aria-selected="false" hidden>
+    <a class="tab" href="#/social" data-view="social" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.5a3 3 0 0 1-3 3H9l-4.5 3.2V6.5a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z"></path></svg>
       <span>Social</span><i class="newdot" id="newdot" hidden></i></a>
   </nav>
-
-  <div class="banner" id="banner" hidden></div>
 
   <main>
     <!-- MAIN PAGE: log an activity, see your own history -->
@@ -481,6 +495,16 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
 
   function elapsed(){ return clamp(dayOf(todayISO(), S.config.start), 0, S.config.days); }
   function onPace(){ return S.config.goal * elapsed() / S.config.days; }
+  /* Days you can still log in, today included. The old "days - elapsed" spent
+     today the moment it began: on the last day it said 0 days left and called
+     everybody short while the whole day was still ahead of them, and every
+     other day it divided the per-day plan by one day too few. */
+  function remaining(){
+    var d = dayOf(todayISO(), S.config.start);
+    if (d > S.config.days) return 0;      /* the month is over */
+    if (d < 1) return S.config.days;      /* it has not started */
+    return S.config.days - d + 1;
+  }
 
   function standings(){
     var by = {}, order = [];
@@ -523,7 +547,8 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     VIEWS.forEach(function(v){ $('view-' + v).hidden = (v !== r); });
     var tabs = document.querySelectorAll('.tab');
     for (var i = 0; i < tabs.length; i++){
-      tabs[i].setAttribute('aria-selected', tabs[i].getAttribute('data-view') === r ? 'true' : 'false');
+      if (tabs[i].getAttribute('data-view') === r) tabs[i].setAttribute('aria-current', 'page');
+      else tabs[i].removeAttribute('aria-current');
     }
     if (r === 'social'){ startChat(); } else { stopChat(); }
   }
@@ -540,6 +565,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     paintYou();
     paintGroup();
     paintHistory();
+    dateBounds();
     fillWho();
     paintChatWho();
     if (route() === 'social' && M.length) paintChat(false);
@@ -547,10 +573,10 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   }
 
   function paintHeader(){
-    var c = S.config, el = elapsed(), left = Math.max(0, c.days - el);
+    var c = S.config, el = elapsed(), left = remaining();
     $('tag').textContent = "Everyone's own " + c.goal + '. Same ' + c.days + ' days, same goal, one board.';
-    $('clocknum').textContent = (el === 0) ? c.days : left;
-    $('clocklbl').textContent = (el === 0) ? 'days to go' : 'days left';
+    $('clocknum').textContent = left;
+    $('clocklbl').textContent = (el === 0) ? 'days to go' : (left === 1 ? 'day left' : 'days left');
   }
 
   function mine(){
@@ -560,7 +586,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   }
 
   function paintYou(){
-    var c = S.config, el = elapsed(), left = Math.max(0, c.days - el), r = mine();
+    var c = S.config, el = elapsed(), left = remaining(), r = mine();
     if (!r){
       $('youstats').innerHTML =
         stat('Your ' + c.unitLong, '—', 'log one to start yours') +
@@ -569,8 +595,10 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
       return;
     }
     var diff = r.total - onPace();
-    var need = left > 0 ? num(Math.max(0, (c.goal - r.total) / left)) + ' ' + c.unit + '/day from here'
-                        : num(Math.max(0, c.goal - r.total)) + ' ' + c.unit + ' short';
+    var short = num(Math.max(0, c.goal - r.total)) + ' ' + c.unit;
+    var need = left > 1 ? num(Math.max(0, (c.goal - r.total) / left)) + ' ' + c.unit + '/day from here'
+             : left === 1 ? short + ' to finish today'
+             : short + ' short';
     $('youstats').innerHTML =
       stat('Your ' + c.unitLong, num(r.total),
         r.total >= c.goal ? 'done — all ' + c.goal + ' in' : num(c.goal - r.total) + ' ' + c.unit + ' to go') +
@@ -621,7 +649,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   }
 
   function rowHTML(r, i){
-    var c = S.config, el = elapsed(), left = Math.max(0, c.days - el);
+    var c = S.config, el = elapsed(), left = remaining();
     var pct = clamp(r.total / c.goal * 100, 0, 100);
     var pacePct = clamp(onPace() / c.goal * 100, 0, 100);
     var diff = r.total - onPace();
@@ -635,8 +663,10 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     var bits = [];
     if (r.activeDays) bits.push(r.activeDays + (r.activeDays === 1 ? ' day logged' : ' days logged'));
     if (r.avg) bits.push(num(r.avg) + '/day avg');
-    var right = r.total >= c.goal ? 'finished' :
-      (left > 0 ? 'needs ' + num((c.goal - r.total) / left) + '/day' : num(c.goal - r.total) + ' ' + c.unit + ' short');
+    var right = r.total >= c.goal ? 'finished'
+      : left > 1 ? 'needs ' + num((c.goal - r.total) / left) + '/day'
+      : left === 1 ? 'needs ' + num(c.goal - r.total) + ' today'
+      : num(c.goal - r.total) + ' ' + c.unit + ' short';
 
     var done = r.total >= c.goal;
     return '<li class="row' + (i === 0 && r.total > 0 ? ' lead' : '') + (keyOf(r.name) === keyOf(me()) ? ' me' : '') + '">' +
@@ -819,8 +849,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
 
   function newest(){ return M.length ? M[M.length - 1].ts : 0; }
   function markSeen(){
-    if (route() !== 'social' || document.hidden) return;
-    ls('hms.seen', String(newest()));
+    if (route() === 'social' && !document.hidden) ls('hms.seen', String(newest()));
     paintDot();
   }
   function paintDot(){
@@ -1054,8 +1083,9 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   function initForm(){
     var c = S.config;
     var d = $('date'), today = todayISO();
-    d.min = c.start; d.max = c.end;
+    d.min = c.start;
     d.value = today < c.start ? c.start : (today > c.end ? c.end : today);
+    dateBounds();
     $('miles').max = c.maxMiles;
     // Ask for the password up front rather than letting the first thing someone
     // writes bounce off a 401.
@@ -1063,6 +1093,13 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
       $('pwwrap').hidden = false;
       $('cpwwrap').hidden = false;
     }
+  }
+
+  /* The picker stops at today, so nobody logs Thursday's run on Tuesday. Kept
+     fresh on every paint, or a tab left open overnight stays a day behind. */
+  function dateBounds(){
+    var c = S.config, today = todayISO();
+    $('date').max = today < c.end ? today : c.end;
   }
 
   function submit(e){
@@ -1083,6 +1120,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
       say('Pick a date between ' + shortDate(c.start) + ' and ' + shortDate(c.end) + '.', true);
       return;
     }
+    if (date > todayISO()){ say('That day has not happened yet.', true); return; }
 
     var key = $('pw').value || ls('hms.key') || '';
     setBusy(true); say('Saving...');
@@ -1231,14 +1269,20 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   document.addEventListener('visibilitychange', function(){
     if (document.hidden) return;
     load();
-    if (route() === 'social') loadChat(false);
+    if (social()) loadChat(false);
   });
 
   onHash();
   // Chat is polled separately, only while the Social tab is open, and only when
   // the server has SOCIAL on — so this waits for config rather than racing it.
   load().then(function(){ return loadChat(true); }).then(paintDot);
-  setInterval(function(){ if (!document.hidden && !busy) load(); }, 30000);
+  setInterval(function(){
+    if (document.hidden || busy) return;
+    load();
+    // Keep the unseen dot honest from the other tabs. Social does its own
+    // faster polling while it is the tab you are actually looking at.
+    if (social() && route() !== 'social' && !chatBusy) loadChat(false);
+  }, 30000);
 })();
 </script>
 </body>
