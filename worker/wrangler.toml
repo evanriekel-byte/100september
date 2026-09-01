@@ -10,6 +10,12 @@ START = "2026-09-01"
 END   = "2026-09-30"
 UNIT  = "mi"
 
+# The Social tab (group chat with photos). Off until identity is worth trusting:
+# with a name picked from a dropdown, anyone can post as anyone. That is a shrug
+# on a mileage entry and a problem in a conversation. Flip to "on" and redeploy
+# when you are ready — see "Turning the chat on" in HANDOFF.md.
+SOCIAL = "off"
+
 # Created by:  npx wrangler d1 create hundred-mile-september
 # Paste the database_id it prints in here.
 [[d1_databases]]

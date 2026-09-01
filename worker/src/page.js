@@ -304,7 +304,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     <a class="tab" href="#/group" data-view="group" role="tab" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V13M10 20V4M16 20v-9M2 20h20"></path></svg>
       <span>Group</span></a>
-    <a class="tab" href="#/social" data-view="social" role="tab" aria-selected="false">
+    <a class="tab" href="#/social" data-view="social" role="tab" aria-selected="false" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.5a3 3 0 0 1-3 3H9l-4.5 3.2V6.5a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z"></path></svg>
       <span>Social</span><i class="newdot" id="newdot" hidden></i></a>
   </nav>
@@ -497,11 +497,16 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
 
   /* ---------- routing ---------- */
 
+  function social(){ return !!(S && S.config.social); }
   function route(){
     var h = String(location.hash || '').replace('#/', '').replace('#', '');
-    return VIEWS.indexOf(h) >= 0 ? h : 'log';
+    if (VIEWS.indexOf(h) < 0) return 'log';
+    // A #/social link while the chat is off lands on Log rather than nothing.
+    if (h === 'social' && !social()) return 'log';
+    return h;
   }
   function show(r){
+    document.querySelector('.tab[data-view="social"]').hidden = !social();
     VIEWS.forEach(function(v){ $('view-' + v).hidden = (v !== r); });
     var tabs = document.querySelectorAll('.tab');
     for (var i = 0; i < tabs.length; i++){
@@ -739,7 +744,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     $('foot').innerHTML =
       esc(c.unitLong.charAt(0).toUpperCase() + c.unitLong.slice(1) + ' logged between ' + shortDate(c.start) +
         ' and ' + shortDate(c.end) + ' ' + String(c.start).slice(0, 4) + " · everyone's own " + c.goal) +
-      '<br>Anyone with this link can log miles and post to the chat' +
+      '<br>Anyone with this link can log miles' + (c.social ? ' and post to the chat' : '') +
       (c.locked ? ', with the group password.' : '.') +
       ' The board refreshes on its own every 30 seconds.';
   }
@@ -765,6 +770,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   /* ---------- chat ---------- */
 
   function startChat(){
+    if (!social()) return;
     loadChat(true);
     if (!chatTimer){
       chatTimer = setInterval(function(){
@@ -777,6 +783,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   }
 
   function loadChat(force){
+    if (!social()) return Promise.resolve();
     return fetch('/api/chat', { cache: 'no-store' })
       .then(function(r){ if (!r.ok) throw new Error('chat ' + r.status); return r.json(); })
       .then(function(d){
@@ -799,7 +806,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   }
   function paintDot(){
     var seen = Number(ls('hms.seen') || 0);
-    $('newdot').hidden = !(newest() > seen && route() !== 'social');
+    $('newdot').hidden = !(social() && newest() > seen && route() !== 'social');
   }
 
   function paintChat(force){
@@ -980,6 +987,8 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
         S = d;
         connected(true);
         if (first) initForm();
+        // The nav is drawn before config lands, so settle the route once it has.
+        if (first) onHash();
         paint();
       })
       .catch(function(){ connected(false); });
@@ -1165,9 +1174,9 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   });
 
   onHash();
-  load();
-  // Chat is polled separately, and only while the Social tab is open.
-  loadChat(true).then(paintDot);
+  // Chat is polled separately, only while the Social tab is open, and only when
+  // the server has SOCIAL on — so this waits for config rather than racing it.
+  load().then(function(){ return loadChat(true); }).then(paintDot);
   setInterval(function(){ if (!document.hidden && !busy) load(); }, 30000);
 })();
 </script>

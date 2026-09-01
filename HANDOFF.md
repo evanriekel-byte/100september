@@ -80,11 +80,29 @@ npm run dev                                       # http://127.0.0.1:8787
 drive every label, the date picker bounds, the pace math, and server-side validation:
 
 ```toml
-GOAL  = "100"          # per person
-START = "2026-09-01"
-END   = "2026-09-30"    # inclusive; day count is derived, not configured
-UNIT  = "mi"           # "km" switches the whole app to kilometres
+GOAL   = "100"          # per person
+START  = "2026-09-01"
+END    = "2026-09-30"   # inclusive; day count is derived, not configured
+UNIT   = "mi"           # "km" switches the whole app to kilometres
+SOCIAL = "off"          # "on" adds the Social tab — read the section below first
 ```
+
+**Turning the chat on** — set `SOCIAL = "on"` and deploy. With it off the Social tab
+is not rendered, `#/social` lands on Log, and `/api/chat`, `/api/chat/delete` and
+`/img/<id>` all 404 — the feature is unreachable, not merely hidden. The tables and
+the code stay in place either way, so it is a one-line change in both directions.
+
+It ships off on purpose. Identity here is a name picked from a dropdown, which is a
+fine trade for miles — an entry is a fact, a wrong one is obvious in the feed, and
+anyone can delete it. It is a worse trade for a conversation, where the same
+mechanism lets anyone put words in someone else's mouth and there is no way to tell.
+Worth doing before flipping it on, cheapest first:
+
+1. **Lock the composer to the device's own name.** `hms.me` is already in
+   `localStorage`; drop the dropdown from the composer and post as that name, with a
+   small "not you?" escape. Removes the casual affordance without adding a login.
+2. **Per-person PINs.** The real fix, and the one the honour system has been putting
+   off since the start. See "If you want to take it further".
 
 **Rotate the password** — `npx wrangler secret put PASSPHRASE`. Everyone is asked
 once more the next time they log miles. Removing the secret entirely makes writes
@@ -103,6 +121,10 @@ for the current syntax before relying on it.
 The whole schema is `IF NOT EXISTS`, so it adds `messages` and `images` and leaves
 `people` and `entries` alone.
 
+**This is required even with `SOCIAL = "off"`.** `deleteEntry` reads `messages` to
+decide whether someone still belongs on the board, so removing an entry against a
+database without that table is a 500. Run it before the deploy, not after.
+
 **Watch live logs** — `npx wrangler tail`. The only thing worth watching for is a
 500, which always means a D1 problem; every user-facing failure is a 4xx with a
 readable message.
@@ -119,6 +141,8 @@ readable message.
 | POST | `/api/chat` | `{who, body, image, w, h, key}` | `image` is a data URL, or omitted |
 | POST | `/api/chat/delete` | `{id, key}` | also drops the message's photo |
 | GET | `/img/<id>` | | one chat photo, cached immutable for a year |
+
+The four chat routes 404 unless `SOCIAL = "on"`.
 | GET | `/api/export.csv` | | full log, no auth |
 | GET | `/healthz` | | `ok` |
 
@@ -237,6 +261,9 @@ Worth re-running by hand after any change to `page.js` or `index.js`.
   is fine. If the group ever fills it up, move `images` to an R2 bucket: only
   `addMessage` and `serveImage` touch the bytes.
 - **Chat has no editing and no read receipts,** and the unseen dot is per-device.
+- **The chat ships off** (`SOCIAL = "off"`), because a name in a dropdown is a much
+  weaker thing to hang a conversation on than a mileage entry. See "Turning the chat
+  on" above.
 
 ## If you want to take it further
 

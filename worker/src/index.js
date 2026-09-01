@@ -37,6 +37,10 @@ export default {
       if (path === '/api/export.csv' && request.method === 'GET') {
         return await exportCsv(env);
       }
+      // With SOCIAL off the chat is not just hidden, it is not reachable.
+      if (path === '/api/chat' || path === '/api/chat/delete' || path.startsWith('/img/')) {
+        if (!config(env).social) return json({ error: 'Not found' }, 404);
+      }
       if (path === '/api/chat' && request.method === 'GET') {
         return json(await readChat(env));
       }
@@ -87,6 +91,7 @@ function config(env) {
     unitLong: unit === 'km' ? 'kilometres' : 'miles',
     maxMiles: MAX_MILES,
     locked: Boolean(env.PASSPHRASE),
+    social: String(env.SOCIAL || 'off').toLowerCase() === 'on',
   };
 }
 

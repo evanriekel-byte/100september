@@ -36,7 +36,7 @@ on a desktop. Each one answers a different question, and each has its own URL
 |---|---|
 | **Log** | how am I doing, and let me add today's activity |
 | **Group** | where does everyone stand |
-| **Social** | what is everyone saying |
+| **Social** | what is everyone saying *(off by default — see below)* |
 
 **Log** is the landing page, because logging is the thing people come to do. Three
 tiles across the top — your total, your pace against the line, what you need per day
@@ -46,7 +46,12 @@ with your streak, your daily average, and your best day.
 **Group** is the shared view: the four-tile stat strip, the leaderboard, and the full
 group activity feed, filterable to one person with a tap.
 
-**Social** is a group chat. Text, photos, or both. A photo is downscaled in the
+**Social** is a group chat — **built, but switched off for now** (`SOCIAL = "off"`
+in `wrangler.toml`). Picking your name from a dropdown is a fair trade for logging
+miles, where a wrong entry is a visible, deletable fact. It is a worse trade for a
+conversation, where the same dropdown lets anyone speak as anyone. The tab comes back
+with a one-line config change once identity is worth trusting. What it does when it
+is on: text, photos, or both. A photo is downscaled in the
 browser before it is sent, so a 4 MB phone shot goes out around 150 KB. Photos can be
 picked, pasted, or dragged in, and tapping one opens it full-size. Messages carry the
 poster's board colour, so the chat and the leaderboard read as the same people. A dot
