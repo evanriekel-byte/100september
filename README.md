@@ -40,6 +40,26 @@ everyone's goals together.
 Adding a name to the "Who" dropdown is how you join; each person picks up a blaze
 color that follows them through the bar and the feed.
 
+## Brand
+
+The mark is an S drawn as two lanes with a gap running through it, tilted 8 degrees,
+in a cyan-to-violet gradient on `#0B1130` navy. Source art is `worker/brand/*.svg`;
+the PNGs beside it are built from those and inlined into `worker/src/assets.js`,
+which is what the Worker actually serves.
+
+| file | used for |
+|---|---|
+| `icon.svg` | rounded tile, the mark in the page header |
+| `favicon.svg` | tab icon — solid stroke, no lane gap, so it survives 16px |
+| `apple-touch-icon.png` (180) | iOS Add to Home Screen |
+| `icon-192.png`, `icon-512.png` | Android / PWA install |
+| `icon-maskable.png` (512) | Android adaptive icon, art inside the 60% safe zone |
+
+Colors: brand cyan `#1FC4E8` to violet `#6A5AF9`, navy `#0B1130`. Green and orange
+stay semantic — green means ahead of pace, orange marks where on-pace sits — so the
+brand gradient never carries a status meaning. No person is assigned orange, because
+orange is the pace marker on every bar.
+
 ## Hosting it on your own domain
 
 `worker/` is the same board built to run anywhere, with no Claude accounts involved:
