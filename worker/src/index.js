@@ -7,6 +7,12 @@ const COLORS = ['#2F8F72','#D2478F','#4478B8','#9A5490','#7E9B32','#C0503E','#1F
 const MAX_MILES = 80;
 const MAX_NAME = 24;
 const MAX_NOTE = 60;
+const MAX_MSG = 500;
+// Photos arrive already downscaled by the browser (longest edge 1280, JPEG).
+// This is the backstop for anything that skips the page and posts directly.
+const MAX_IMAGE_BYTES = 1_000_000;
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+const CHAT_PAGE = 200;
 
 export default {
   async fetch(request, env) {
@@ -30,6 +36,18 @@ export default {
       }
       if (path === '/api/export.csv' && request.method === 'GET') {
         return await exportCsv(env);
+      }
+      if (path === '/api/chat' && request.method === 'GET') {
+        return json(await readChat(env));
+      }
+      if (path === '/api/chat' && request.method === 'POST') {
+        return await addMessage(request, env);
+      }
+      if (path === '/api/chat/delete' && request.method === 'POST') {
+        return await deleteMessage(request, env);
+      }
+      if (path.startsWith('/img/') && request.method === 'GET') {
+        return await serveImage(path.slice(5), env);
       }
       if (path === '/icon.svg' || path === '/favicon.svg') {
         return asset(path === '/icon.svg' ? ICON_SVG : FAVICON_SVG, 'image/svg+xml');
@@ -119,15 +137,7 @@ async function addEntry(request, env) {
   const note = String(body.note || '').trim().slice(0, MAX_NOTE);
   const now = Date.now();
 
-  // First time we see a name, it joins and picks up the next blaze color.
-  const existing = await env.DB.prepare('SELECT name FROM people WHERE name = ?1').bind(who).first();
-  const name = existing ? existing.name : who;
-  if (!existing) {
-    const count = await env.DB.prepare('SELECT COUNT(*) AS n FROM people').first();
-    await env.DB.prepare('INSERT OR IGNORE INTO people (name, color, created) VALUES (?1, ?2, ?3)')
-      .bind(name, COLORS[(count?.n || 0) % COLORS.length], now)
-      .run();
-  }
+  const name = await joinPerson(who, env, now);
 
   const id = now.toString(36) + Math.random().toString(36).slice(2, 8);
   await env.DB.prepare('INSERT INTO entries (id, who, date, miles, note, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
@@ -148,10 +158,135 @@ async function deleteEntry(request, env) {
   if (!id) return json({ error: 'Which entry?' }, 400);
 
   await env.DB.prepare('DELETE FROM entries WHERE id = ?1').bind(id).run();
-  // Drop anyone left with no entries so the board does not carry ghosts.
-  await env.DB.prepare('DELETE FROM people WHERE name NOT IN (SELECT who FROM entries)').run();
+  // Drop anyone left with nothing at all so the board does not carry ghosts.
+  // Someone who has only ever chatted stays — they are still in the group.
+  await env.DB.prepare(
+    'DELETE FROM people WHERE name NOT IN (SELECT who FROM entries) AND name NOT IN (SELECT who FROM messages)'
+  ).run();
 
   return json({ ok: true });
+}
+
+/* ---------- chat ---------- */
+
+async function readChat(env) {
+  const rows = await env.DB
+    .prepare('SELECT id, who, body, img, w, h, ts FROM messages ORDER BY ts DESC LIMIT ?1')
+    .bind(CHAT_PAGE)
+    .all();
+  // Oldest first: the page reads top to bottom like every other chat.
+  return { messages: (rows.results || []).reverse() };
+}
+
+async function addMessage(request, env) {
+  const body = await readJson(request);
+  if (!body) return json({ error: 'Malformed request.' }, 400);
+
+  const denied = authorize(body, env);
+  if (denied) return denied;
+
+  const who = String(body.who || '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME);
+  if (!who) return json({ error: 'Pick who you are first.' }, 400);
+
+  const text = String(body.body || '').trim().slice(0, MAX_MSG);
+  const photo = body.image ? decodeDataUrl(String(body.image)) : null;
+  if (body.image && !photo) {
+    return json({ error: 'That photo did not come through. Try a JPEG or PNG.' }, 400);
+  }
+  if (photo && photo.bytes.length > MAX_IMAGE_BYTES) {
+    return json({ error: 'That photo is too big. Under 1 MB, please.' }, 400);
+  }
+  if (!text && !photo) return json({ error: 'Write something, or add a photo.' }, 400);
+
+  const now = Date.now();
+  const name = await joinPerson(who, env, now);
+
+  let imgId = null;
+  if (photo) {
+    imgId = 'i' + now.toString(36) + Math.random().toString(36).slice(2, 8);
+    await env.DB.prepare('INSERT INTO images (id, mime, bytes, ts) VALUES (?1, ?2, ?3, ?4)')
+      .bind(imgId, photo.mime, photo.bytes.buffer, now)
+      .run();
+  }
+
+  const id = 'm' + now.toString(36) + Math.random().toString(36).slice(2, 8);
+  await env.DB
+    .prepare('INSERT INTO messages (id, who, body, img, w, h, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)')
+    .bind(id, name, text, imgId, dim(body.w), dim(body.h), now)
+    .run();
+
+  return json({ ok: true, id, img: imgId });
+}
+
+async function deleteMessage(request, env) {
+  const body = await readJson(request);
+  if (!body) return json({ error: 'Malformed request.' }, 400);
+
+  const denied = authorize(body, env);
+  if (denied) return denied;
+
+  const id = String(body.id || '');
+  if (!id) return json({ error: 'Which message?' }, 400);
+
+  const row = await env.DB.prepare('SELECT img FROM messages WHERE id = ?1').bind(id).first();
+  await env.DB.prepare('DELETE FROM messages WHERE id = ?1').bind(id).run();
+  if (row && row.img) {
+    await env.DB.prepare('DELETE FROM images WHERE id = ?1').bind(row.img).run();
+  }
+  return json({ ok: true });
+}
+
+async function serveImage(id, env) {
+  if (!/^[a-z0-9]{1,40}$/.test(id)) return json({ error: 'Not found' }, 404);
+  const row = await env.DB.prepare('SELECT mime, bytes FROM images WHERE id = ?1').bind(id).first();
+  if (!row) return json({ error: 'Not found' }, 404);
+  return new Response(toBytes(row.bytes), {
+    headers: {
+      'content-type': row.mime,
+      // Ids are unique per upload, so a photo never changes under its URL.
+      'cache-control': 'public, max-age=31536000, immutable',
+    },
+  });
+}
+
+/** D1 hands BLOB columns back as a plain number array; older shapes still work. */
+function toBytes(v) {
+  if (v instanceof ArrayBuffer) return new Uint8Array(v);
+  if (ArrayBuffer.isView(v)) return new Uint8Array(v.buffer, v.byteOffset, v.byteLength);
+  if (Array.isArray(v)) return new Uint8Array(v);
+  return new Uint8Array(0);
+}
+
+function dim(v) {
+  const n = Math.round(Number(v));
+  return isFinite(n) && n > 0 && n < 20000 ? n : null;
+}
+
+/** "data:image/jpeg;base64,..." -> {mime, bytes}, or null if it is not an image. */
+function decodeDataUrl(s) {
+  const m = /^data:([a-z0-9.+/-]+);base64,([A-Za-z0-9+/=\s]+)$/i.exec(s);
+  if (!m) return null;
+  const mime = m[1].toLowerCase();
+  if (!IMAGE_TYPES.includes(mime)) return null;
+  try {
+    const bin = atob(m[2].replace(/\s+/g, ''));
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return bytes.length ? { mime, bytes } : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+/** A name new to the board joins people and takes the next blaze colour. */
+async function joinPerson(who, env, now) {
+  const existing = await env.DB.prepare('SELECT name FROM people WHERE name = ?1').bind(who).first();
+  if (existing) return existing.name;
+  const count = await env.DB.prepare('SELECT COUNT(*) AS n FROM people').first();
+  await env.DB.prepare('INSERT OR IGNORE INTO people (name, color, created) VALUES (?1, ?2, ?3)')
+    .bind(who, COLORS[(count?.n || 0) % COLORS.length], now)
+    .run();
+  return who;
 }
 
 /* ---------- helpers ---------- */

@@ -26,6 +26,32 @@ one URL that works in any phone or desktop browser.
 That's it. No login, no email, no app. On a phone, Share → Add to Home Screen puts
 it on the home screen and it launches without browser chrome, like an app.
 
+## Three pages
+
+The app is three tabs — a bar in thumb reach on a phone, a rail under the masthead
+on a desktop. Each one answers a different question, and each has its own URL
+(`#/log`, `#/group`, `#/social`) so a tab survives a refresh and can be linked to.
+
+| tab | the question it answers |
+|---|---|
+| **Log** | how am I doing, and let me add today's activity |
+| **Group** | where does everyone stand |
+| **Social** | what is everyone saying |
+
+**Log** is the landing page, because logging is the thing people come to do. Three
+tiles across the top — your total, your pace against the line, what you need per day
+from here — then the form, then **your own history**: every activity you have logged,
+with your streak, your daily average, and your best day.
+
+**Group** is the shared view: the four-tile stat strip, the leaderboard, and the full
+group activity feed, filterable to one person with a tap.
+
+**Social** is a group chat. Text, photos, or both. A photo is downscaled in the
+browser before it is sent, so a 4 MB phone shot goes out around 150 KB. Photos can be
+picked, pasted, or dragged in, and tapping one opens it full-size. Messages carry the
+poster's board colour, so the chat and the leaderboard read as the same people. A dot
+on the Social tab means there is something you have not seen.
+
 ## What the board shows
 
 **Stat strip** — four numbers, yours first:
@@ -45,7 +71,7 @@ here. Finishing your 100 replaces your position number with a check — completi
 your own commitment is the win condition, not out-running anyone.
 
 **Activity** — every entry, newest first, colored by person, with a two-click remove
-for typos. Capped at 24 with a "show all" toggle.
+for typos. Capped at 24 with a "show all" toggle, and filterable to one person.
 
 Rows sort by total, so the board does read a little like a leaderboard. That is
 deliberate — seeing where you sit is most of why people open a shared board — but
@@ -54,13 +80,15 @@ the goal, the chips, and the finish marker are all measured against your own 100
 ## How it works
 
 A single [Cloudflare Worker](https://workers.cloudflare.com) serves the page and a
-small JSON API; entries live in a [D1](https://developers.cloudflare.com/d1/)
-SQLite database. There is no build step, no framework, and no server to keep alive.
-It costs the price of the domain — the compute and database sit inside Cloudflare's
-free tier at this size, with room to spare.
+small JSON API; entries, messages and photos live in a
+[D1](https://developers.cloudflare.com/d1/) SQLite database. There is no build step,
+no framework, and no server to keep alive. It costs the price of the domain — the
+compute and database sit inside Cloudflare's free tier at this size, with room to
+spare.
 
-Open tabs re-fetch every 30 seconds, but only while the tab is visible, so a phone
-in a pocket costs nothing.
+Open tabs re-fetch the board every 30 seconds, and the chat every 7 seconds while the
+Social tab is the one you are looking at. Both stop the moment the tab is hidden, so a
+phone in a pocket costs nothing.
 
 ## Identity, honestly
 
@@ -72,7 +100,8 @@ That is a deliberate trade. Per-person logins would add friction for every singl
 participant to defend against a problem that does not exist in a group of friends,
 and the activity feed makes anything strange obvious immediately. The shared
 password is not there to tell people apart — it only stops a stranger who stumbles
-on the URL from writing to the board. **Reading is open to anyone with the link.**
+on the URL from writing to the board. **Reading is open to anyone with the link**, and
+that now includes the chat and any photo posted to it.
 
 ## Design
 
@@ -83,12 +112,18 @@ header, so brand, domain, and browser tab all agree.
 One rule holds the interface together: **the brand gradient never means anything.**
 Green means ahead of pace, orange marks the on-pace line, and those two are the only
 colors that carry status. The gradient is reserved for identity — the mark, the
-wordmark, the primary button, and the chip you earn at 100. No participant is ever
-assigned an orange blaze color, because orange already means "pace" on every bar.
+wordmark, the primary button, the send button, the tint on your own chat messages,
+and the chip you earn at 100. No participant is ever assigned an orange blaze color,
+because orange already means "pace" on every bar.
 
-The board is designed for both light and dark, and for phones first: on a narrow
-screen the log form sits above the leaderboard, because logging is the thing you
-came to do.
+The navigation follows the same rule: the active tab is marked in plain ink, never in
+the gradient, so nothing about where you are competes with what the colors mean. The
+unseen-messages dot is the one exception, and it is orange because it is a nudge, not
+an identity.
+
+The board is designed for both light and dark, and for phones first: navigation sits
+at the bottom where a thumb reaches, and the Log tab opens first, because logging is
+the thing you came to do.
 
 ---
 

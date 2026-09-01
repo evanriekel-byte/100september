@@ -3,6 +3,9 @@
 A shared board for a group taking on the same personal challenge: 100 miles in
 September. Run it, walk it — it takes a distance and a date, nothing else.
 
+Three tabs: **Log** your own activity and see your history, **Group** for the
+leaderboard and everyone's activity, **Social** for a group chat with photos.
+
 **Live: [septembermiles.com](https://septembermiles.com)**
 
 - **[OVERVIEW.md](OVERVIEW.md)** — what the app is, what the board shows, and the

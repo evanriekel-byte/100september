@@ -29,16 +29,28 @@ forgotten it gets rotated, not recovered.
 ```
 worker/
   wrangler.toml     config + the challenge itself (see "Change the rules")
-  schema.sql        two tables; safe to re-run, everything is IF NOT EXISTS
-  src/index.js      router, JSON API, validation, auth, CSV export
+  schema.sql        four tables; safe to re-run, everything is IF NOT EXISTS
+  src/index.js      router, JSON API, validation, auth, chat, images, CSV export
   src/page.js       the ENTIRE client — markup, CSS and JS as one exported string
   src/assets.js     GENERATED: icon SVGs, base64 PNGs, web manifest
   brand/            source art the assets module is built from
 tracker.html        RETIRED. The original Claude Artifact version, kept for reference
 ```
 
-`src/page.js` is one big template literal. It contains no backticks and no `${`, and
-it must stay that way or the module stops parsing. Nothing else imports from it.
+`src/page.js` is one big template literal, and two rules keep it working:
+
+1. **No backticks and no `${`**, or the module stops parsing.
+2. **A backslash meant for the browser has to be written twice.** The template
+   literal eats single ones, so `/\\s+/g` in this file is `/\s+/g` in the served
+   page. Writing it once silently ships `/s+/g` — a regex that matches the letter s.
+   Check with `node -e "import('./src/page.js').then(m=>console.log(m.PAGE))"`.
+
+Nothing else imports from it.
+
+The client is three views behind one hash router (`#/log`, `#/group`, `#/social`),
+all present in the DOM and toggled with `hidden`. Adding a fourth means: a `.tab`
+anchor in `nav#nav`, a `section.view` with a matching `view-<name>` id, and the name
+in the `VIEWS` array.
 
 `src/assets.js` is generated from `brand/`. Editing it by hand is fine for a one-off,
 but the art is the SVGs — regenerate rather than hand-patch base64.
@@ -85,7 +97,11 @@ doing once a week during the challenge; it is the whole log in four columns.
 for the current syntax before relying on it.
 
 **Wipe the board** —
-`npx wrangler d1 execute DB --remote --command "DELETE FROM entries; DELETE FROM people;"`
+`npx wrangler d1 execute DB --remote --command "DELETE FROM entries; DELETE FROM messages; DELETE FROM images; DELETE FROM people;"`
+
+**Add the chat tables to a database created before they existed** — `npm run db:remote`.
+The whole schema is `IF NOT EXISTS`, so it adds `messages` and `images` and leaves
+`people` and `entries` alone.
 
 **Watch live logs** — `npx wrangler tail`. The only thing worth watching for is a
 500, which always means a D1 problem; every user-facing failure is a 4xx with a
@@ -96,11 +112,18 @@ readable message.
 | method | route | body | notes |
 |---|---|---|---|
 | GET | `/` | | the board |
-| GET | `/api/state` | | `{config, people, entries}` — everything the page renders from |
+| GET | `/api/state` | | `{config, people, entries}` — everything the board renders from |
 | POST | `/api/entries` | `{who, date, miles, note, key}` | 401 on bad `key`, 400 on bad input |
 | POST | `/api/entries/delete` | `{id, key}` | |
+| GET | `/api/chat` | | `{messages}` — the last 200, oldest first |
+| POST | `/api/chat` | `{who, body, image, w, h, key}` | `image` is a data URL, or omitted |
+| POST | `/api/chat/delete` | `{id, key}` | also drops the message's photo |
+| GET | `/img/<id>` | | one chat photo, cached immutable for a year |
 | GET | `/api/export.csv` | | full log, no auth |
 | GET | `/healthz` | | `ok` |
+
+Chat writes take the same group password as miles. Chat reads, like board reads, are
+open to anyone with the link.
 
 Plus `/favicon.svg`, `/icon.svg`, `/apple-touch-icon.png`, `/icon-192.png`,
 `/icon-512.png`, `/icon-maskable.png`, `/site.webmanifest`.
@@ -108,9 +131,12 @@ Plus `/favicon.svg`, `/icon.svg`, `/apple-touch-icon.png`, `/icon-192.png`,
 ## Data model
 
 ```sql
-people  (name TEXT PRIMARY KEY COLLATE NOCASE, color TEXT, created INTEGER)
-entries (id TEXT PRIMARY KEY, who TEXT COLLATE NOCASE, date TEXT, miles REAL,
-         note TEXT, ts INTEGER)
+people   (name TEXT PRIMARY KEY COLLATE NOCASE, color TEXT, created INTEGER)
+entries  (id TEXT PRIMARY KEY, who TEXT COLLATE NOCASE, date TEXT, miles REAL,
+          note TEXT, ts INTEGER)
+messages (id TEXT PRIMARY KEY, who TEXT COLLATE NOCASE, body TEXT, img TEXT,
+          w INTEGER, h INTEGER, ts INTEGER)
+images   (id TEXT PRIMARY KEY, mime TEXT, bytes BLOB, ts INTEGER)
 ```
 
 Rules enforced server-side in `addEntry`:
@@ -119,14 +145,26 @@ Rules enforced server-side in `addEntry`:
   against the existing `Evan`.
 - `0 < miles <= 80`, date must fall inside `START`..`END`, name ≤ 24 chars,
   note ≤ 60 chars.
-- A name new to the board joins `people` and takes the next color in `COLORS`.
-- Deleting someone's last entry prunes them from `people`. If they come back they
-  may be assigned a different color.
+- A name new to the board joins `people` and takes the next color in `COLORS`
+  (`joinPerson`, shared with chat — posting a message is enough to join).
+- Deleting someone's last entry prunes them from `people` **only if they have no
+  messages either**. If they come back they may be assigned a different color.
+
+And in `addMessage`:
+
+- Body ≤ 500 chars. A message needs a body, a photo, or both.
+- `image` is a `data:` URL; only `image/jpeg`, `png`, `webp` and `gif` are accepted,
+  and only up to 1 MB decoded. The browser downscales to a 1280 px longest edge and
+  steps JPEG quality down until it is under ~420 KB, so that ceiling is a backstop
+  for anything posting straight to the API.
+- `messages.img` is the `images.id`. Deleting a message deletes its photo; nothing
+  else references it.
 
 Client state that is not on the server: `localStorage` holds `hms.me` (which name is
-yours, for the "you" tag and the form default) and `hms.key` (the password). Both are
-per-device conveniences; losing them costs one dropdown selection and one password
-entry.
+yours, for the "you" tag, the form default, and which chat bubbles are yours),
+`hms.key` (the password), and `hms.seen` (the newest message timestamp you have
+looked at, which drives the dot on the Social tab). All three are per-device
+conveniences; losing them costs one dropdown selection and one password entry.
 
 ## Gotchas that cost time
 
@@ -166,6 +204,22 @@ local D1 and a seeded mid-challenge board, driving the page with Playwright:
 - Every brand route: correct content-type and byte count matching the source file.
 - Light and dark themes at 1180px, 390px and 320px, with no horizontal scroll.
 
+Re-verified the same way after the three-page rebuild, plus:
+
+- All three tabs at 1180px, 390px and 320px, light and dark: no horizontal scroll,
+  exactly one tab marked selected, no console errors.
+- Logging through the form, then the entry appearing in **your history** with the
+  right streak, average and best day.
+- The group activity filter narrowing the feed to one person and back.
+- A photo sent through the composer, stored, served from `/img/<id>` **byte-identical**
+  to the file uploaded, and reopened full-size in the lightbox.
+- The chat pinned to the newest message after a photo finishes loading — the bug that
+  the `load` listener in `paintChat` exists to fix.
+- A message and a name of `<img src=x onerror=alert(1)>` / `<script>alert(2)</script>`
+  render as inert text on both the chat and the board: no element created, no alert.
+- Wrong password, empty message, non-image data URL, and two-click remove on both a
+  message and an entry (one click never deletes).
+
 Worth re-running by hand after any change to `page.js` or `index.js`.
 
 ## Known limits
@@ -176,11 +230,18 @@ Worth re-running by hand after any change to `page.js` or `index.js`.
 - **No editing an entry** — delete it and add it again.
 - **Dates are the viewer's local date.** Someone logging near midnight in another
   timezone may pick a different "today" than the board's other users. Harmless here.
-- **No backups run automatically.** The CSV export is manual.
+- **No backups run automatically.** The CSV export is manual, and it covers miles
+  only — chat messages and photos are not in it.
+- **Photos live in D1, not R2.** That keeps the whole app on one binding and inside
+  the free tier, but D1 is not built to be a photo store. At a few hundred photos it
+  is fine. If the group ever fills it up, move `images` to an R2 bucket: only
+  `addMessage` and `serveImage` touch the bytes.
+- **Chat has no editing and no read receipts,** and the unseen dot is per-device.
 
 ## If you want to take it further
 
 Roughly in order of value for effort: per-person PINs if the group ever outgrows the
 honor system; editable entries; a sort toggle (finished-first, or alphabetical, to
-soften the leaderboard read); streaks; an `og:image` so the link previews properly
-when it gets texted around.
+soften the leaderboard read); an `og:image` so the link previews properly when it gets
+texted around; reactions on chat messages; photos on activity entries too, reusing the
+`images` table the chat already has.
