@@ -51,7 +51,13 @@ in `wrangler.toml`). Picking your name from a dropdown is a fair trade for loggi
 miles, where a wrong entry is a visible, deletable fact. It is a worse trade for a
 conversation, where the same dropdown lets anyone speak as anyone. The tab comes back
 with a one-line config change once identity is worth trusting. What it does when it
-is on: text, photos, or both. A photo is downscaled in the
+is on: text, photos, or both.
+
+The chat does not ask who you are every time. It posts as the name this device has
+already claimed — *Posting as Evan* — with a **not you?** escape for a shared phone.
+Logging miles offers a menu of everyone because you might reasonably fix someone
+else's entry; a conversation offers no such menu, because there is no good reason to
+type in someone else's voice. A photo is downscaled in the
 browser before it is sent, so a 4 MB phone shot goes out around 150 KB. Photos can be
 picked, pasted, or dragged in, and tapping one opens it full-size. Messages carry the
 poster's board colour, so the chat and the leaderboard read as the same people. A dot

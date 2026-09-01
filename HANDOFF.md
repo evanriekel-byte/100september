@@ -96,13 +96,20 @@ It ships off on purpose. Identity here is a name picked from a dropdown, which i
 fine trade for miles — an entry is a fact, a wrong one is obvious in the feed, and
 anyone can delete it. It is a worse trade for a conversation, where the same
 mechanism lets anyone put words in someone else's mouth and there is no way to tell.
-Worth doing before flipping it on, cheapest first:
 
-1. **Lock the composer to the device's own name.** `hms.me` is already in
-   `localStorage`; drop the dropdown from the composer and post as that name, with a
-   small "not you?" escape. Removes the casual affordance without adding a login.
-2. **Per-person PINs.** The real fix, and the one the honour system has been putting
-   off since the start. See "If you want to take it further".
+**The composer no longer offers that menu.** It posts as whatever name this device
+has in `hms.me`, shown as a locked row — *Posting as ⬛ Evan* — with the person's own
+board colour beside it. The picker only appears in two cases: a device that has never
+said who it is, and someone who taps **not you?** (a shared phone, or a name typed
+wrong the first time). Switching that way is deliberate and takes three taps, instead
+of being one dropdown away from every message. That removes the casual affordance
+without adding a login, and it is why the chat is now a config flip rather than a
+rewrite away from usable.
+
+What it still does *not* do is stop anyone determined: `hms.me` is a `localStorage`
+string, and the API takes whatever `who` it is handed. The real fix is unchanged —
+**per-person PINs** — and it is the same fix the miles form has been putting off since
+the start. Decide whether a group of friends needs it before flipping `SOCIAL` on.
 
 **Rotate the password** — `npx wrangler secret put PASSPHRASE`. Everyone is asked
 once more the next time they log miles. Removing the secret entirely makes writes
@@ -185,7 +192,8 @@ And in `addMessage`:
   else references it.
 
 Client state that is not on the server: `localStorage` holds `hms.me` (which name is
-yours, for the "you" tag, the form default, and which chat bubbles are yours),
+yours, for the "you" tag, the form default, which chat bubbles are yours, and who the
+chat composer posts as),
 `hms.key` (the password), and `hms.seen` (the newest message timestamp you have
 looked at, which drives the dot on the Social tab). All three are per-device
 conveniences; losing them costs one dropdown selection and one password entry.
@@ -261,9 +269,11 @@ Worth re-running by hand after any change to `page.js` or `index.js`.
   is fine. If the group ever fills it up, move `images` to an R2 bucket: only
   `addMessage` and `serveImage` touch the bytes.
 - **Chat has no editing and no read receipts,** and the unseen dot is per-device.
-- **The chat ships off** (`SOCIAL = "off"`), because a name in a dropdown is a much
-  weaker thing to hang a conversation on than a mileage entry. See "Turning the chat
-  on" above.
+- **The chat ships off** (`SOCIAL = "off"`). The composer is locked to the device's
+  own name, which stops the accidental and the casual, but `hms.me` is only
+  `localStorage` and the API trusts the `who` it is given. See "Turning the chat on".
+- **Clearing browser data forgets who you are.** Next visit the composer asks again,
+  as it does on a new phone. One tap, and nothing on the server is lost.
 
 ## If you want to take it further
 

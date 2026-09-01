@@ -237,6 +237,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--brand);outline-o
 .chat.drop{outline:2px dashed var(--brand);outline-offset:-5px}
 .chatscroll{flex:1 1 auto;height:min(56vh,520px);overflow-y:auto;overscroll-behavior:contain;
   padding:16px;display:flex;flex-direction:column;gap:11px}
+.chatscroll > :first-child{margin-top:auto}
 .daydiv{display:flex;align-items:center;gap:10px;margin:4px 0;font-family:var(--mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}
 .daydiv:before,.daydiv:after{content:"";flex:1 1 auto;height:1px;background:var(--line-2)}
 .msg{display:flex;gap:9px;align-items:flex-end;max-width:100%}
@@ -258,6 +259,10 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--brand);outline-o
 .cwho{display:flex;align-items:center;gap:8px;margin-bottom:9px;font-family:var(--mono);font-size:11px;color:var(--ink-3)}
 .cwho select{width:auto;max-width:170px;font-size:12px;padding:4px 28px 4px 8px;background-position:calc(100% - 13px) 55%,calc(100% - 8px) 55%}
 .cwho input{width:auto;flex:1 1 110px;min-width:0;font-size:12px;padding:4px 8px}
+.cav{flex:none;width:15px;height:15px;border-radius:2px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-family:var(--display);font-weight:700;font-size:8.5px;line-height:1}
+.cme{font-family:var(--display);font-variation-settings:"wdth" 104;font-weight:700;font-size:12.5px;letter-spacing:.01em;color:var(--ink);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.linkbtn{flex:none;margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--ink-3);background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;padding:0 0 1px;cursor:pointer}
+.linkbtn:hover{color:var(--ink);border-bottom-color:var(--ink-3)}
 .attach{display:flex;align-items:center;gap:10px;margin-bottom:9px;padding:7px;border:1px solid var(--line);border-radius:2px;background:var(--surface-2)}
 .attach img{flex:none;width:44px;height:44px;object-fit:cover;border-radius:2px}
 .attach span{flex:1 1 auto;min-width:0;font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
@@ -367,10 +372,17 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
         <div class="card chat" id="chatcard">
           <div class="chatscroll" id="chatscroll" role="log" aria-live="polite"><div class="boot">loading the chat...</div></div>
           <form class="composer" id="chatform" autocomplete="off">
-            <div class="cwho">
+            <div class="cwho" id="cwholock" hidden>
+              <span>Posting as</span>
+              <span class="cav" id="cav" aria-hidden="true"></span>
+              <b class="cme" id="cmename"></b>
+              <button class="linkbtn" type="button" id="cswitch">not you?</button>
+            </div>
+            <div class="cwho" id="cwhopick" hidden>
               <span>Posting as</span>
               <select id="cwho" aria-label="Who you are"><option value="__new">+ Add someone new</option></select>
               <input id="cnewname" type="text" placeholder="First name" maxlength="24" aria-label="Your name" hidden>
+              <button class="linkbtn" type="button" id="ccancel" hidden>cancel</button>
             </div>
             <div class="attach" id="attach" hidden>
               <img id="attachimg" alt="Photo you are about to send">
@@ -413,6 +425,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   var busy = false, chatBusy = false;
   var pending = null;        /* photo staged in the composer */
   var chatSig = '', chatTimer = null;
+  var chatPick = false;      /* composer is asking who you are, rather than assuming */
 
   function $(id){ return document.getElementById(id); }
   function esc(s){
@@ -528,6 +541,8 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     paintGroup();
     paintHistory();
     fillWho();
+    paintChatWho();
+    if (route() === 'social' && M.length) paintChat(false);
     paintFoot();
   }
 
@@ -753,7 +768,11 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     var rows = standings();
     [['who', 'newwrap'], ['cwho', 'cnewname']].forEach(function(pair){
       var sel = $(pair[0]);
-      var keep = sel.value && sel.value !== '__new' ? sel.value : me();
+      // Before the first fill the select holds nothing but the placeholder, so
+      // default to you. After that keep whatever is selected — "+ Add someone
+      // new" included, or a 30-second refresh wipes a name being typed.
+      var filled = sel.options.length > 1;
+      var keep = (filled && sel.value) ? sel.value : me();
       sel.innerHTML = rows.map(function(r){
         return '<option value="' + esc(r.name) + '">' + esc(r.name) + '</option>';
       }).join('') + '<option value="__new">+ Add someone new</option>';
@@ -906,7 +925,25 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     $('pickimg').setAttribute('aria-pressed', 'false');
   }
 
+  /* The composer posts as this device's own name rather than offering a menu of
+     everyone. A dropdown is a fair trade for miles, where a wrong entry is a
+     visible, deletable fact; in a conversation it is an invitation to speak as
+     somebody else. "not you?" is still there for a shared phone. */
+  function paintChatWho(){
+    var known = me();
+    var open = chatPick || !known;
+    $('cwholock').hidden = open;
+    $('cwhopick').hidden = !open;
+    $('ccancel').hidden = !known;
+    if (!open){
+      $('cmename').textContent = known;
+      $('cav').textContent = initial(known);
+      $('cav').style.background = colorOf(known);
+    }
+  }
+
   function chatWho(){
+    if ($('cwhopick').hidden) return tidy(me());
     var sel = $('cwho');
     return tidy(sel.value === '__new' ? $('cnewname').value : sel.value);
   }
@@ -916,7 +953,11 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     if (chatBusy) return;
 
     var who = chatWho();
-    if (!who){ csay('Pick who you are first.', true); $('cnewname').focus(); return; }
+    if (!who){
+      csay('Type your name first.', true);
+      chatPick = true; paintChatWho(); $('cnewname').focus();
+      return;
+    }
     var text = $('chatbody').value.trim();
     if (!text && !pending){ csay('Write something, or add a photo.', true); return; }
 
@@ -933,9 +974,12 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
       ls('hms.me', who);
       $('chatbody').value = ''; grow();
       $('cpw').value = ''; $('cpwwrap').hidden = true;
+      $('pw').value = ''; $('pwwrap').hidden = true;
       clearPhoto();
+      chatPick = false; paintChatWho();
       setChatBusy(false); csay('');
-      return Promise.all([loadChat(true), load()]);
+      // Board first: a brand-new poster has only just been given their colour.
+      return load().then(function(){ return loadChat(true); });
     }).catch(function(err){ setChatBusy(false); fail(err, 'chat'); });
   }
 
@@ -1013,7 +1057,12 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     d.min = c.start; d.max = c.end;
     d.value = today < c.start ? c.start : (today > c.end ? c.end : today);
     $('miles').max = c.maxMiles;
-    if (c.locked && !ls('hms.key')) $('pwwrap').hidden = false;
+    // Ask for the password up front rather than letting the first thing someone
+    // writes bounce off a 401.
+    if (c.locked && !ls('hms.key')){
+      $('pwwrap').hidden = false;
+      $('cpwwrap').hidden = false;
+    }
   }
 
   function submit(e){
@@ -1044,6 +1093,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
         ls('hms.me', who);
         $('miles').value = ''; $('note').value = ''; $('newname').value = '';
         $('pw').value = ''; $('pwwrap').hidden = true;
+        $('cpw').value = ''; $('cpwwrap').hidden = true;
         setBusy(false);
         say('Logged ' + num(miles) + ' ' + c.unit + ' for ' + who + '.');
         return load();
@@ -1128,6 +1178,17 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     var isNew = this.value === '__new';
     $('cnewname').hidden = !isNew;
     if (isNew) $('cnewname').focus();
+  });
+  $('cswitch').addEventListener('click', function(){
+    chatPick = true;
+    paintChatWho();
+    $('cwho').focus();
+  });
+  $('ccancel').addEventListener('click', function(){
+    chatPick = false;
+    $('cnewname').value = '';
+    paintChatWho();
+    $('chatbody').focus();
   });
 
   $('pickimg').addEventListener('click', function(){ $('file').click(); });
