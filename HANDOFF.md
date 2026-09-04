@@ -302,8 +302,12 @@ Rules enforced server-side in `addEntry`:
 
 - Names are matched case-insensitively and stored as first typed, so `evan` logs
   against the existing `Evan`.
-- `0 < miles <= 80`, date must fall inside `START`..`END`, name ≤ 24 chars,
-  note ≤ 60 chars.
+- `0 < miles <= 80`, rounded to the hundredth on the way in and shown to the
+  hundredth on the way out (`num()` in `page.js`, which trims trailing zeros so
+  4 stays `4` and 3.1 stays `3.1`). It displayed tenths until Sept 4, which
+  meant a 5.65 logged as 5.65 read back as 5.7, and 99.99 printed as `100` for
+  someone the finish check had not finished.
+- date must fall inside `START`..`END`, name ≤ 24 chars, note ≤ 60 chars.
 - **No future dates.** Every number on the board weighs a total against the days
   that have actually passed, so a whole month logged on day one reads as a
   runaway lead. The cap is today in UTC plus one day of slack, because "today"

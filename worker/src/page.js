@@ -458,9 +458,13 @@ The whole log is also available as a plain file at <a href="/api/export.csv">/ap
     return Math.round((t - a) / 86400000) + 1;
   }
   function clamp(n, lo, hi){ return n < lo ? lo : (n > hi ? hi : n); }
+  /* Two decimal places, but only as many as the number actually needs: 4 stays
+     "4", 3.1 stays "3.1", and 5.65 no longer rounds away to "5.7". Miles are
+     stored to the hundredth and the form takes them in hundredths, so tenths
+     here meant the board quietly disagreed with what somebody typed -- and at
+     99.99 it printed "100" for a person the finish check had not finished. */
   function num(m){
-    var r = Math.round(m * 10) / 10;
-    return (r % 1 === 0) ? String(r) : r.toFixed(1);
+    return String(Math.round(m * 100) / 100);
   }
   function shortDate(s){
     var a = String(s).split('-');
