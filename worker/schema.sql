@@ -4,13 +4,17 @@ CREATE TABLE IF NOT EXISTS people (
   created INTEGER NOT NULL
 );
 
+-- logged_by / device: who was at the keyboard, not who the miles are for.
+-- Identity is still the honor system; these only make it visible.
 CREATE TABLE IF NOT EXISTS entries (
-  id    TEXT PRIMARY KEY,
-  who   TEXT NOT NULL COLLATE NOCASE,
-  date  TEXT NOT NULL,
-  miles REAL NOT NULL,
-  note  TEXT NOT NULL DEFAULT '',
-  ts    INTEGER NOT NULL
+  id        TEXT PRIMARY KEY,
+  who       TEXT NOT NULL COLLATE NOCASE,
+  date      TEXT NOT NULL,
+  miles     REAL NOT NULL,
+  note      TEXT NOT NULL DEFAULT '',
+  ts        INTEGER NOT NULL,
+  logged_by TEXT,
+  device    TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_entries_date ON entries(date DESC, ts DESC);

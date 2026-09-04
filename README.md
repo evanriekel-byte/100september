@@ -24,6 +24,9 @@ npx wrangler deploy      # ships to the live Worker
 npm run dev              # or run it locally at 127.0.0.1:8787
 ```
 
+No terminal to hand? **Actions → Deploy → Run workflow** does the same thing from
+a phone, once the three secrets in HANDOFF are set up.
+
 Change the challenge — distance, dates, miles vs. kilometres — in `[vars]` in
 `worker/wrangler.toml`, then deploy.
 
@@ -32,7 +35,8 @@ Change the challenge — distance, dates, miles vs. kilometres — in `[vars]` i
 ```
 worker/          the app: a Cloudflare Worker serving the page and a JSON API,
                  with the log in a D1 (SQLite) database
-worker/brand/    source art for the icon set
+worker/brand/    source art for the icon set, and the script that builds the
+                 link-preview card
 tracker.html     retired — the original self-publishing Claude Artifact version,
                  kept for reference. It is not what runs at septembermiles.com
 ```

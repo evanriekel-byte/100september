@@ -13,68 +13,124 @@ const MAX_MSG = 500;
 const MAX_IMAGE_BYTES = 1_000_000;
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 const CHAT_PAGE = 200;
+// A browser-generated id, base36, used only to group entries by device.
+const DEVICE_RE = /^[a-z0-9]{1,16}$/;
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const path = url.pathname;
-
     try {
-      if (path === '/' || path === '/index.html') {
-        return new Response(PAGE, {
-          headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-cache' },
-        });
-      }
-      if (path === '/api/state' && request.method === 'GET') {
-        return json(await readState(env));
-      }
-      if (path === '/api/entries' && request.method === 'POST') {
-        return await addEntry(request, env);
-      }
-      if (path === '/api/entries/delete' && request.method === 'POST') {
-        return await deleteEntry(request, env);
-      }
-      if (path === '/api/export.csv' && request.method === 'GET') {
-        return await exportCsv(env);
-      }
-      // With SOCIAL off the chat is not just hidden, it is not reachable.
-      if (path === '/api/chat' || path === '/api/chat/delete' || path.startsWith('/img/')) {
-        if (!config(env).social) return json({ error: 'Not found' }, 404);
-      }
-      if (path === '/api/chat' && request.method === 'GET') {
-        return json(await readChat(env));
-      }
-      if (path === '/api/chat' && request.method === 'POST') {
-        return await addMessage(request, env);
-      }
-      if (path === '/api/chat/delete' && request.method === 'POST') {
-        return await deleteMessage(request, env);
-      }
-      if (path.startsWith('/img/') && request.method === 'GET') {
-        return await serveImage(path.slice(5), env);
-      }
-      if (path === '/icon.svg' || path === '/favicon.svg') {
-        return asset(path === '/icon.svg' ? ICON_SVG : FAVICON_SVG, 'image/svg+xml');
-      }
-      if (path === '/site.webmanifest') {
-        return asset(MANIFEST, 'application/manifest+json');
-      }
-      if (PNGS[path.slice(1)]) {
-        return asset(png(path.slice(1)), 'image/png');
-      }
-      if (path === '/favicon.ico') {
-        // no .ico in the set; modern browsers take the SVG
-        return asset(FAVICON_SVG, 'image/svg+xml');
-      }
-      if (path === '/healthz') {
-        return new Response('ok', { headers: { 'content-type': 'text/plain' } });
-      }
-      return json({ error: 'Not found' }, 404);
+      const res = await handle(request, env, url);
+      // On everything: no MIME sniffing (chat photos are bytes a person chose),
+      // no framing, and no Referer -- the link is the only thing gating writes,
+      // so it must not ride along to anywhere else.
+      res.headers.set('x-content-type-options', 'nosniff');
+      res.headers.set('x-frame-options', 'DENY');
+      res.headers.set('referrer-policy', 'no-referrer');
+      return res;
     } catch (err) {
       return json({ error: 'Something broke on our end. Try again in a moment.' }, 500);
     }
   },
 };
+
+async function handle(request, env, url) {
+  const path = url.pathname;
+
+  if (path === '/' || path === '/index.html') {
+    return new Response(pageFor(url.origin), {
+      headers: {
+        'content-type': 'text/html; charset=utf-8',
+        'cache-control': 'no-cache',
+        // The page is one inline style block and one inline script, so both
+        // need 'unsafe-inline'; hashing them would mean a build step, and
+        // there is deliberately no build step. What this still buys: no
+        // script from anywhere else, no eval, no plugins, no framing.
+        'content-security-policy': [
+          "default-src 'self'",
+          "script-src 'self' 'unsafe-inline'",
+          "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+          "font-src https://fonts.gstatic.com",
+          // blob: too -- the composer reads a picked photo through URL.createObjectURL
+          // before the canvas downscales it, and data: is the downscaled result.
+          "img-src 'self' data: blob:",
+          "connect-src 'self'",
+          "manifest-src 'self'",
+          "form-action 'self'",
+          "base-uri 'none'",
+          "object-src 'none'",
+          "frame-ancestors 'none'",
+        ].join('; '),
+      },
+    });
+  }
+  if (path === '/robots.txt') {
+    // Anyone with the link can read the board, and it carries real names,
+    // notes and photos. The link is the door; search results are not.
+    return new Response('User-agent: *\nDisallow: /\n', {
+      headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'public, max-age=86400' },
+    });
+  }
+  if (path === '/api/state' && request.method === 'GET') {
+    return json(await readState(env));
+  }
+  if (path === '/api/entries' && request.method === 'POST') {
+    return await addEntry(request, env);
+  }
+  if (path === '/api/entries/delete' && request.method === 'POST') {
+    return await deleteEntry(request, env);
+  }
+  if (path === '/api/export.csv' && request.method === 'GET') {
+    return await exportCsv(env);
+  }
+  // With SOCIAL off the chat is not just hidden, it is not reachable.
+  if (path === '/api/chat' || path === '/api/chat/delete' || path.startsWith('/img/')) {
+    if (!config(env).social) return json({ error: 'Not found' }, 404);
+  }
+  if (path === '/api/chat' && request.method === 'GET') {
+    return json(await readChat(env));
+  }
+  if (path === '/api/chat' && request.method === 'POST') {
+    return await addMessage(request, env);
+  }
+  if (path === '/api/chat/delete' && request.method === 'POST') {
+    return await deleteMessage(request, env);
+  }
+  if (path.startsWith('/img/') && request.method === 'GET') {
+    return await serveImage(path.slice(5), env);
+  }
+  if (path === '/icon.svg' || path === '/favicon.svg') {
+    return asset(path === '/icon.svg' ? ICON_SVG : FAVICON_SVG, 'image/svg+xml');
+  }
+  if (path === '/site.webmanifest') {
+    return asset(MANIFEST, 'application/manifest+json');
+  }
+  if (PNGS[path.slice(1)]) {
+    return asset(png(path.slice(1)), 'image/png');
+  }
+  if (path === '/favicon.ico') {
+    // no .ico in the set; modern browsers take the SVG
+    return asset(FAVICON_SVG, 'image/svg+xml');
+  }
+  if (path === '/healthz') {
+    return new Response('ok', { headers: { 'content-type': 'text/plain' } });
+  }
+  return json({ error: 'Not found' }, 404);
+}
+
+/* The page ships __ORIGIN__ placeholders in its canonical and og: tags so a
+   self-hosted copy previews itself rather than septembermiles.com. Built once
+   per hostname -- there are only ever a couple. */
+const pageCache = new Map();
+function pageFor(origin) {
+  let html = pageCache.get(origin);
+  if (!html) {
+    if (pageCache.size > 8) pageCache.clear();
+    html = PAGE.split('__ORIGIN__').join(origin);
+    pageCache.set(origin, html);
+  }
+  return html;
+}
 
 /* ---------- config ---------- */
 
@@ -105,9 +161,13 @@ function daysBetween(start, end) {
 /* ---------- reads ---------- */
 
 async function readState(env) {
+  const ORDER = ' FROM entries ORDER BY date DESC, ts DESC';
   const [people, entries] = await Promise.all([
     env.DB.prepare('SELECT name, color FROM people ORDER BY created ASC').all(),
-    env.DB.prepare('SELECT id, who, date, miles, note, ts FROM entries ORDER BY date DESC, ts DESC').all(),
+    unmigrated(
+      () => env.DB.prepare('SELECT id, who, date, miles, note, ts, logged_by, device' + ORDER).all(),
+      () => env.DB.prepare('SELECT id, who, date, miles, note, ts' + ORDER).all()
+    ),
   ]);
   return {
     config: config(env),
@@ -138,16 +198,44 @@ async function addEntry(request, env) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < cfg.start || date > cfg.end) {
     return json({ error: `Pick a date between ${cfg.start} and ${cfg.end}.` }, 400);
   }
+  // Nothing in the future. Every number on the board weighs a total against the
+  // days that have actually passed, so a whole month logged on day one reads as
+  // a runaway lead. One day of slack: "today" is the viewer's local date, and
+  // far enough east it genuinely is tomorrow already.
+  if (date > new Date(Date.now() + 86400000).toISOString().slice(0, 10)) {
+    return json({ error: 'That day has not happened yet.' }, 400);
+  }
 
   const note = String(body.note || '').trim().slice(0, MAX_NOTE);
   const now = Date.now();
 
   const name = await joinPerson(who, env, now);
 
+  // Who was at the keyboard, as opposed to who the miles are for. Both come
+  // from the browser and are as trustworthy as the rest of the honor system --
+  // the point is that logging for somebody else stops being invisible. The
+  // device id is the sturdier half: it survives someone editing the name, so
+  // four entries typed on one phone still read as four entries from one phone.
+  const by = String(body.by || '').replace(/\s+/g, ' ').trim().slice(0, MAX_NAME);
+  const rawDev = String(body.dev || '');
+  const dev = DEVICE_RE.test(rawDev) ? rawDev : null;
+
   const id = now.toString(36) + Math.random().toString(36).slice(2, 8);
-  await env.DB.prepare('INSERT INTO entries (id, who, date, miles, note, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
-    .bind(id, name, date, Math.round(miles * 100) / 100, note, now)
-    .run();
+  const miles2 = Math.round(miles * 100) / 100;
+  await unmigrated(
+    () =>
+      env.DB
+        .prepare('INSERT INTO entries (id, who, date, miles, note, ts, logged_by, device) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)')
+        .bind(id, name, date, miles2, note, now, by || null, dev)
+        .run(),
+    // Un-migrated: log the miles anyway. Losing the attribution on a handful of
+    // entries is a far smaller problem than nobody being able to log at all.
+    () =>
+      env.DB
+        .prepare('INSERT INTO entries (id, who, date, miles, note, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6)')
+        .bind(id, name, date, miles2, note, now)
+        .run()
+  );
 
   return json({ ok: true, id });
 }
@@ -296,6 +384,22 @@ async function joinPerson(who, env, now) {
 
 /* ---------- helpers ---------- */
 
+/* Attribution added two columns to `entries`. Rather than make the deploy a
+   two-step where getting the order wrong takes the board down, every query
+   that wants them falls back to the shape without them. So a deploy that lands
+   before `npm run db:migrate` still serves the board and still accepts miles;
+   it just cannot record who typed them until the migration runs. Only a
+   missing column is caught -- any other D1 failure is still a real 500. */
+async function unmigrated(withColumns, without) {
+  try {
+    return await withColumns();
+  } catch (err) {
+    const msg = String((err && err.message) || err);
+    if (!/no such column|has no column named/i.test(msg)) throw err;
+    return await without();
+  }
+}
+
 function authorize(body, env) {
   const need = env.PASSPHRASE;
   if (!need) return null;
@@ -353,9 +457,24 @@ function json(data, status = 200) {
 }
 
 async function exportCsv(env) {
-  const rows = await env.DB.prepare('SELECT date, who, miles, note FROM entries ORDER BY date ASC, ts ASC').all();
-  const csv = ['date,who,miles,note']
-    .concat((rows.results || []).map((r) => [r.date, csvCell(r.who), r.miles, csvCell(r.note)].join(',')))
+  const ORDER = ' FROM entries ORDER BY date ASC, ts ASC';
+  const rows = await unmigrated(
+    () => env.DB.prepare('SELECT date, who, miles, note, ts, logged_by' + ORDER).all(),
+    () => env.DB.prepare('SELECT date, who, miles, note, ts' + ORDER).all()
+  );
+  const csv = ['date,who,miles,note,logged_by,logged_at']
+    .concat(
+      (rows.results || []).map((r) =>
+        [
+          r.date,
+          csvCell(r.who),
+          r.miles,
+          csvCell(r.note),
+          csvCell(r.logged_by || ''),   // blank = logged before attribution existed, genuinely unknown
+          new Date(r.ts).toISOString(),
+        ].join(',')
+      )
+    )
     .join('\n');
   return new Response(csv + '\n', {
     headers: {
@@ -366,6 +485,9 @@ async function exportCsv(env) {
 }
 
 function csvCell(v) {
-  const s = String(v == null ? '' : v);
+  let s = String(v == null ? '' : v);
+  // Names and notes are free text, and this file exists to be opened in a
+  // spreadsheet -- where a leading =, +, - or @ is a formula, not a note.
+  if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
   return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }

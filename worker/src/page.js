@@ -18,6 +18,22 @@ export const PAGE = `<!doctype html>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="manifest" href="/site.webmanifest">
+<link rel="canonical" href="__ORIGIN__/">
+<!-- The board is readable by anyone with the link, and it carries real names,
+     notes and photos. Keep it out of search results; the link is the door. -->
+<meta name="robots" content="noindex, nofollow">
+<!-- Link previews. __ORIGIN__ is filled in per request by src/index.js, so a
+     self-hosted copy previews itself rather than septembermiles.com. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="September Miles">
+<meta property="og:title" content="September Miles">
+<meta property="og:description" content="Everyone's own 100 miles in September, on one board.">
+<meta property="og:url" content="__ORIGIN__/">
+<meta property="og:image" content="__ORIGIN__/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="SEPTEMBERMILES.com - everyone's own 100 miles in September, on one board.">
+<meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" media="(prefers-color-scheme: light)" content="#EEF1F6">
 <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#090F20">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -108,7 +124,7 @@ h1{margin:0;display:flex;flex-wrap:wrap;align-items:baseline;font-family:var(--d
   font-size:9.5px;letter-spacing:.1em;text-transform:uppercase}
 .tab svg{width:21px;height:21px;flex:none;stroke:currentColor;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .tab:hover{color:var(--ink-2)}
-.tab[aria-selected="true"]{color:var(--ink);border-top-color:var(--ink)}
+.tab[aria-current="page"]{color:var(--ink);border-top-color:var(--ink)}
 .newdot{position:absolute;top:6px;left:calc(50% + 8px);width:7px;height:7px;border-radius:50%;background:var(--blaze);border:2px solid var(--surface)}
 @media (min-width:760px){
   .nav{position:static;display:flex;gap:28px;margin-top:0;padding:0;
@@ -116,15 +132,12 @@ h1{margin:0;display:flex;flex-wrap:wrap;align-items:baseline;font-family:var(--d
   .tab{flex:0 0 auto;flex-direction:row;gap:8px;padding:12px 2px;margin:0 0 -1px;
     border-top:0;border-bottom:2px solid transparent;font-size:11px;letter-spacing:.13em}
   .tab svg{width:17px;height:17px}
-  .tab[aria-selected="true"]{border-top-color:transparent;border-bottom-color:var(--ink)}
+  .tab[aria-current="page"]{border-top-color:transparent;border-bottom-color:var(--ink)}
   .newdot{top:9px;left:auto;right:-11px;border-color:var(--bg)}
 }
 
 /* views */
 .view{display:flex;flex-direction:column;gap:28px;margin-top:24px}
-
-/* banner */
-.banner{margin-top:18px;padding:11px 14px;border:1px solid var(--line);border-left:3px solid var(--blaze);background:var(--surface);border-radius:var(--r);font-size:13.5px;color:var(--ink-2)}
 
 /* stat strip */
 .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
@@ -223,6 +236,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid var(--brand);outline-o
 .ev-txt b{font-weight:600}
 .ev-txt .note{color:var(--ink-3);font-style:italic}
 .ev-when{flex:none;font-family:var(--mono);font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.by{flex:none;max-width:11ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono);font-size:9.5px;letter-spacing:.05em;color:var(--ink-2);border:1px solid var(--line);border-radius:2px;padding:1px 5px}
+.hnote .by{margin-left:7px;display:inline-block;vertical-align:1px}
 .rm{flex:none;font-family:var(--mono);font-size:11px;color:var(--ink-3);background:none;border:1px solid transparent;border-radius:2px;padding:2px 5px;cursor:pointer}
 .rm:hover{color:var(--blaze);border-color:var(--line)}
 .rm[data-arm="1"]{color:var(--blaze);border-color:var(--blaze)}
@@ -285,11 +300,14 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
 .live i{width:6px;height:6px;border-radius:50%;background:var(--pine);display:inline-block}
 .offline .live i{background:var(--blaze)}
 .boot{padding:40px 16px;text-align:center;color:var(--ink-3);font-family:var(--mono);font-size:12px}
-.readonly .rm,.readonly .logcard form,.readonly .composer{display:none}
+.nojs{margin:0;padding:13px clamp(14px,3vw,26px);background:var(--surface);border-bottom:1px solid var(--line);border-left:3px solid var(--blaze);font-size:13.5px;color:var(--ink-2)}
+.nojs a{color:var(--ink)}
 @media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
 </style>
 </head>
 <body>
+<noscript><div class="nojs">This board is drawn in the browser, so it needs JavaScript switched on.
+The whole log is also available as a plain file at <a href="/api/export.csv">/api/export.csv</a>.</div></noscript>
 <div class="wrap" id="root">
   <header class="masthead">
     <div class="brand">
@@ -303,18 +321,16 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   </header>
 
   <nav class="nav" id="nav" aria-label="Sections">
-    <a class="tab" href="#/log" data-view="log" role="tab" aria-selected="true">
+    <a class="tab" href="#/log" data-view="log" aria-current="page">
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 8.2v7.6M8.2 12h7.6"></path></svg>
       <span>Log</span></a>
-    <a class="tab" href="#/group" data-view="group" role="tab" aria-selected="false">
+    <a class="tab" href="#/group" data-view="group">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V13M10 20V4M16 20v-9M2 20h20"></path></svg>
       <span>Group</span></a>
-    <a class="tab" href="#/social" data-view="social" role="tab" aria-selected="false" hidden>
+    <a class="tab" href="#/social" data-view="social" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.5a3 3 0 0 1-3 3H9l-4.5 3.2V6.5a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3z"></path></svg>
       <span>Social</span><i class="newdot" id="newdot" hidden></i></a>
   </nav>
-
-  <div class="banner" id="banner" hidden></div>
 
   <main>
     <!-- MAIN PAGE: log an activity, see your own history -->
@@ -325,7 +341,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
           <div class="sec-head" style="margin-bottom:14px"><h2>Log an activity</h2><span class="sec-note live"><i></i><span id="livelbl">live</span></span></div>
           <form id="logform" autocomplete="off">
             <label class="field"><span class="lbl">Who</span>
-              <select id="who"><option value="__new">+ Add someone new</option></select></label>
+              <select id="who"><option value="">— pick your name —</option><option value="__new">+ Add someone new</option></select></label>
             <label class="field" id="newwrap"><span class="lbl">Name</span>
               <input id="newname" type="text" placeholder="First name" maxlength="24"></label>
             <div class="two">
@@ -380,7 +396,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
             </div>
             <div class="cwho" id="cwhopick" hidden>
               <span>Posting as</span>
-              <select id="cwho" aria-label="Who you are"><option value="__new">+ Add someone new</option></select>
+              <select id="cwho" aria-label="Who you are"><option value="">— pick your name —</option><option value="__new">+ Add someone new</option></select>
               <input id="cnewname" type="text" placeholder="First name" maxlength="24" aria-label="Your name" hidden>
               <button class="linkbtn" type="button" id="ccancel" hidden>cancel</button>
             </div>
@@ -426,6 +442,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   var pending = null;        /* photo staged in the composer */
   var chatSig = '', chatTimer = null;
   var chatPick = false;      /* composer is asking who you are, rather than assuming */
+  var whoReady = false;      /* has fillWho run once? decides remembered-name vs. keep */
 
   function $(id){ return document.getElementById(id); }
   function esc(s){
@@ -441,9 +458,13 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     return Math.round((t - a) / 86400000) + 1;
   }
   function clamp(n, lo, hi){ return n < lo ? lo : (n > hi ? hi : n); }
+  /* Two decimal places, but only as many as the number actually needs: 4 stays
+     "4", 3.1 stays "3.1", and 5.65 no longer rounds away to "5.7". Miles are
+     stored to the hundredth and the form takes them in hundredths, so tenths
+     here meant the board quietly disagreed with what somebody typed -- and at
+     99.99 it printed "100" for a person the finish check had not finished. */
   function num(m){
-    var r = Math.round(m * 10) / 10;
-    return (r % 1 === 0) ? String(r) : r.toFixed(1);
+    return String(Math.round(m * 100) / 100);
   }
   function shortDate(s){
     var a = String(s).split('-');
@@ -471,7 +492,25 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     } catch (e) {}
     return null;
   }
+  var PICK = '— pick your name —';
   function me(){ return ls('hms.me') || ''; }
+  /* A random id for this browser, made once and kept. It says nothing about
+     who you are -- it only lets the board notice that several entries were
+     typed on the same device. */
+  function devId(){
+    var d = ls('hms.dev');
+    if (!d){ d = Math.random().toString(36).slice(2, 10); ls('hms.dev', d); }
+    return d;
+  }
+  /* Who did the typing, when that is not who the miles are for. */
+  function loggedBy(e){
+    var by = tidy(e.logged_by);
+    return (by && keyOf(by) !== keyOf(e.who)) ? by : '';
+  }
+  function byTag(e){
+    var by = loggedBy(e);
+    return by ? '<span class="by" title="' + esc('Logged by ' + by) + '">by ' + esc(by) + '</span>' : '';
+  }
   function initial(n){ return String(n || '?').trim().charAt(0).toUpperCase() || '?'; }
   function colorOf(n){
     var c = '#7C8A85';
@@ -481,6 +520,16 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
 
   function elapsed(){ return clamp(dayOf(todayISO(), S.config.start), 0, S.config.days); }
   function onPace(){ return S.config.goal * elapsed() / S.config.days; }
+  /* Days you can still log in, today included. The old "days - elapsed" spent
+     today the moment it began: on the last day it said 0 days left and called
+     everybody short while the whole day was still ahead of them, and every
+     other day it divided the per-day plan by one day too few. */
+  function remaining(){
+    var d = dayOf(todayISO(), S.config.start);
+    if (d > S.config.days) return 0;      /* the month is over */
+    if (d < 1) return S.config.days;      /* it has not started */
+    return S.config.days - d + 1;
+  }
 
   function standings(){
     var by = {}, order = [];
@@ -523,7 +572,8 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     VIEWS.forEach(function(v){ $('view-' + v).hidden = (v !== r); });
     var tabs = document.querySelectorAll('.tab');
     for (var i = 0; i < tabs.length; i++){
-      tabs[i].setAttribute('aria-selected', tabs[i].getAttribute('data-view') === r ? 'true' : 'false');
+      if (tabs[i].getAttribute('data-view') === r) tabs[i].setAttribute('aria-current', 'page');
+      else tabs[i].removeAttribute('aria-current');
     }
     if (r === 'social'){ startChat(); } else { stopChat(); }
   }
@@ -540,6 +590,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     paintYou();
     paintGroup();
     paintHistory();
+    dateBounds();
     fillWho();
     paintChatWho();
     if (route() === 'social' && M.length) paintChat(false);
@@ -547,10 +598,10 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   }
 
   function paintHeader(){
-    var c = S.config, el = elapsed(), left = Math.max(0, c.days - el);
+    var c = S.config, el = elapsed(), left = remaining();
     $('tag').textContent = "Everyone's own " + c.goal + '. Same ' + c.days + ' days, same goal, one board.';
-    $('clocknum').textContent = (el === 0) ? c.days : left;
-    $('clocklbl').textContent = (el === 0) ? 'days to go' : 'days left';
+    $('clocknum').textContent = left;
+    $('clocklbl').textContent = (el === 0) ? 'days to go' : (left === 1 ? 'day left' : 'days left');
   }
 
   function mine(){
@@ -560,7 +611,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   }
 
   function paintYou(){
-    var c = S.config, el = elapsed(), left = Math.max(0, c.days - el), r = mine();
+    var c = S.config, el = elapsed(), left = remaining(), r = mine();
     if (!r){
       $('youstats').innerHTML =
         stat('Your ' + c.unitLong, '—', 'log one to start yours') +
@@ -569,8 +620,10 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
       return;
     }
     var diff = r.total - onPace();
-    var need = left > 0 ? num(Math.max(0, (c.goal - r.total) / left)) + ' ' + c.unit + '/day from here'
-                        : num(Math.max(0, c.goal - r.total)) + ' ' + c.unit + ' short';
+    var short = num(Math.max(0, c.goal - r.total)) + ' ' + c.unit;
+    var need = left > 1 ? num(Math.max(0, (c.goal - r.total) / left)) + ' ' + c.unit + '/day from here'
+             : left === 1 ? short + ' to finish today'
+             : short + ' short';
     $('youstats').innerHTML =
       stat('Your ' + c.unitLong, num(r.total),
         r.total >= c.goal ? 'done — all ' + c.goal + ' in' : num(c.goal - r.total) + ' ' + c.unit + ' to go') +
@@ -621,7 +674,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   }
 
   function rowHTML(r, i){
-    var c = S.config, el = elapsed(), left = Math.max(0, c.days - el);
+    var c = S.config, el = elapsed(), left = remaining();
     var pct = clamp(r.total / c.goal * 100, 0, 100);
     var pacePct = clamp(onPace() / c.goal * 100, 0, 100);
     var diff = r.total - onPace();
@@ -635,8 +688,10 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     var bits = [];
     if (r.activeDays) bits.push(r.activeDays + (r.activeDays === 1 ? ' day logged' : ' days logged'));
     if (r.avg) bits.push(num(r.avg) + '/day avg');
-    var right = r.total >= c.goal ? 'finished' :
-      (left > 0 ? 'needs ' + num((c.goal - r.total) / left) + '/day' : num(c.goal - r.total) + ' ' + c.unit + ' short');
+    var right = r.total >= c.goal ? 'finished'
+      : left > 1 ? 'needs ' + num((c.goal - r.total) / left) + '/day'
+      : left === 1 ? 'needs ' + num(c.goal - r.total) + ' today'
+      : num(c.goal - r.total) + ' ' + c.unit + ' short';
 
     var done = r.total >= c.goal;
     return '<li class="row' + (i === 0 && r.total > 0 ? ' lead' : '') + (keyOf(r.name) === keyOf(me()) ? ' me' : '') + '">' +
@@ -684,6 +739,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
             '<span class="dot" style="background:' + esc(colorOf(e.who)) + '"></span>' +
             '<span class="ev-txt"><b>' + esc(e.who) + '</b> ' + num(e.miles) + ' ' + esc(S.config.unit) +
               (e.note ? ' <span class="note">— ' + esc(e.note) + '</span>' : '') + '</span>' +
+            byTag(e) +
             '<span class="ev-when">' + esc(shortDate(e.date)) + '</span>' +
             '<button class="rm" type="button" data-kind="entry" data-id="' + esc(e.id) + '" aria-label="Remove this entry">×</button>' +
           '</li>';
@@ -747,7 +803,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
           return '<li class="hrow">' +
             '<span class="hdate">' + esc(shortDate(e.date)) + '</span>' +
             '<span class="hmiles">' + num(e.miles) + '<small>' + esc(c.unit) + '</small></span>' +
-            '<span class="hnote">' + (e.note ? esc(e.note) : '') + '</span>' +
+            '<span class="hnote">' + (e.note ? esc(e.note) : '') + byTag(e) + '</span>' +
             '<button class="rm" type="button" data-kind="entry" data-id="' + esc(e.id) + '" aria-label="Remove this activity">×</button>' +
           '</li>';
         }).join('') + '</ul>'
@@ -764,26 +820,36 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
       ' The board refreshes on its own every 30 seconds.';
   }
 
+  /* The Who menu opens blank on a device that has not said who it is.
+     It used to open on the first name in the list -- and that list is sorted
+     by total, so a new phone silently pre-selected whoever was winning. Fill
+     in miles, tap Add, and you had logged them for somebody else without ever
+     touching the field. A blank cannot be submitted, so the mistake now has to
+     be made on purpose. A device that already knows you still gets your own
+     name: defaulting to yourself is the point of remembering. */
   function fillWho(){
     var rows = standings();
     [['who', 'newwrap'], ['cwho', 'cnewname']].forEach(function(pair){
       var sel = $(pair[0]);
-      // Before the first fill the select holds nothing but the placeholder, so
-      // default to you. After that keep whatever is selected — "+ Add someone
-      // new" included, or a 30-second refresh wipes a name being typed.
-      var filled = sel.options.length > 1;
-      var keep = (filled && sel.value) ? sel.value : me();
-      sel.innerHTML = rows.map(function(r){
-        return '<option value="' + esc(r.name) + '">' + esc(r.name) + '</option>';
-      }).join('') + '<option value="__new">+ Add someone new</option>';
+      // On the first fill fall back to whoever this device already is. After
+      // that keep whatever is showing — the blank and "+ Add someone new"
+      // included, or a 30-second refresh wipes a name being typed.
+      var keep = whoReady ? sel.value : me();
+      sel.innerHTML = '<option value="">' + PICK + '</option>' +
+        rows.map(function(r){
+          return '<option value="' + esc(r.name) + '">' + esc(r.name) + '</option>';
+        }).join('') + '<option value="__new">+ Add someone new</option>';
       var found = false;
       for (var i = 0; i < sel.options.length; i++){
         if (keyOf(sel.options[i].value) === keyOf(keep)){ sel.selectedIndex = i; found = true; break; }
       }
-      if (!found && rows.length) sel.selectedIndex = 0;
+      // Nothing to restore — an unknown device, or a name since removed from
+      // the board. Blank, never the person at the top of it.
+      if (!found) sel.value = '';
       if (!rows.length) sel.value = '__new';
       $(pair[1]).hidden = sel.value !== '__new';
     });
+    whoReady = true;
   }
 
   /* ---------- chat ---------- */
@@ -819,8 +885,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
 
   function newest(){ return M.length ? M[M.length - 1].ts : 0; }
   function markSeen(){
-    if (route() !== 'social' || document.hidden) return;
-    ls('hms.seen', String(newest()));
+    if (route() === 'social' && !document.hidden) ls('hms.seen', String(newest()));
     paintDot();
   }
   function paintDot(){
@@ -954,7 +1019,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
 
     var who = chatWho();
     if (!who){
-      csay('Type your name first.', true);
+      csay('Pick who you are first.', true);
       chatPick = true; paintChatWho(); $('cnewname').focus();
       return;
     }
@@ -1054,8 +1119,9 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   function initForm(){
     var c = S.config;
     var d = $('date'), today = todayISO();
-    d.min = c.start; d.max = c.end;
+    d.min = c.start;
     d.value = today < c.start ? c.start : (today > c.end ? c.end : today);
+    dateBounds();
     $('miles').max = c.maxMiles;
     // Ask for the password up front rather than letting the first thing someone
     // writes bounce off a 401.
@@ -1065,14 +1131,26 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
     }
   }
 
+  /* The picker stops at today, so nobody logs Thursday's run on Tuesday. Kept
+     fresh on every paint, or a tab left open overnight stays a day behind. */
+  function dateBounds(){
+    var c = S.config, today = todayISO();
+    $('date').max = today < c.end ? today : c.end;
+  }
+
   function submit(e){
     e.preventDefault();
     if (busy) return;
     var c = S.config;
 
     var sel = $('who');
+    if (!sel.value){
+      say('Pick who you are first — the board will not guess.', true);
+      sel.focus();
+      return;
+    }
     var who = tidy(sel.value === '__new' ? $('newname').value : sel.value);
-    if (!who){ say('Add a name first.', true); return; }
+    if (!who){ say('Type your name first.', true); $('newname').focus(); return; }
 
     var miles = parseFloat($('miles').value);
     if (!(miles > 0)){ say('How many ' + c.unitLong + '? Enter a number above zero.', true); return; }
@@ -1083,11 +1161,13 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
       say('Pick a date between ' + shortDate(c.start) + ' and ' + shortDate(c.end) + '.', true);
       return;
     }
+    if (date > todayISO()){ say('That day has not happened yet.', true); return; }
 
     var key = $('pw').value || ls('hms.key') || '';
     setBusy(true); say('Saving...');
 
-    post('/api/entries', { who: who, date: date, miles: miles, note: $('note').value, key: key })
+    post('/api/entries', { who: who, date: date, miles: miles, note: $('note').value, key: key,
+                           by: me() || who, dev: devId() })
       .then(function(){
         if (key) ls('hms.key', key);
         ls('hms.me', who);
@@ -1172,6 +1252,7 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   $('who').addEventListener('change', function(){
     var isNew = this.value === '__new';
     $('newwrap').hidden = !isNew;
+    if (this.value) say('');
     if (isNew) $('newname').focus();
   });
   $('cwho').addEventListener('change', function(){
@@ -1231,14 +1312,20 @@ footer{margin-top:34px;padding-top:16px;border-top:1px solid var(--line);font-fa
   document.addEventListener('visibilitychange', function(){
     if (document.hidden) return;
     load();
-    if (route() === 'social') loadChat(false);
+    if (social()) loadChat(false);
   });
 
   onHash();
   // Chat is polled separately, only while the Social tab is open, and only when
   // the server has SOCIAL on — so this waits for config rather than racing it.
   load().then(function(){ return loadChat(true); }).then(paintDot);
-  setInterval(function(){ if (!document.hidden && !busy) load(); }, 30000);
+  setInterval(function(){
+    if (document.hidden || busy) return;
+    load();
+    // Keep the unseen dot honest from the other tabs. Social does its own
+    // faster polling while it is the tab you are actually looking at.
+    if (social() && route() !== 'social' && !chatBusy) loadChat(false);
+  }, 30000);
 })();
 </script>
 </body>

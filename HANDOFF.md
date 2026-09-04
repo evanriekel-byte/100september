@@ -30,10 +30,12 @@ forgotten it gets rotated, not recovered.
 worker/
   wrangler.toml     config + the challenge itself (see "Change the rules")
   schema.sql        four tables; safe to re-run, everything is IF NOT EXISTS
+  migrate.sql       one-off ALTERs for a board older than a schema change
   src/index.js      router, JSON API, validation, auth, chat, images, CSV export
   src/page.js       the ENTIRE client — markup, CSS and JS as one exported string
   src/assets.js     GENERATED: icon SVGs, base64 PNGs, web manifest
   brand/            source art the assets module is built from
+  brand/make-og.py  builds brand/og.png, the 1200x630 link-preview card
 tracker.html        RETIRED. The original Claude Artifact version, kept for reference
 ```
 
@@ -55,6 +57,20 @@ in the `VIEWS` array.
 `src/assets.js` is generated from `brand/`. Editing it by hand is fine for a one-off,
 but the art is the SVGs — regenerate rather than hand-patch base64.
 
+The one piece with a script of its own is the link-preview card:
+
+```sh
+pip install pillow
+python3 brand/make-og.py          # -> brand/og.png
+```
+
+It wants Archivo 800 semi-expanded, Public Sans 400 and IBM Plex Mono 400 in
+`brand/fonts/`; the header comment names the Google Fonts URLs. Without them it
+falls back to DejaVu and the card is legible but off-brand. The fonts are not in
+the repo. Fold the new bytes into the `PNGS` map in `src/assets.js` as base64
+under the key `og.png` — the router serves anything in that map by name, so no
+route change is needed.
+
 ## Deploy
 
 ```sh
@@ -73,6 +89,40 @@ npm run db:local                                  # create tables in the local D
 echo 'PASSPHRASE = "anything"' > .dev.vars        # optional; .dev.vars is gitignored
 npm run dev                                       # http://127.0.0.1:8787
 ```
+
+## Deploying without a terminal
+
+`.github/workflows/deploy.yml` deploys from GitHub, so a phone is enough:
+**Actions → Deploy → Run workflow**, pick a branch, Run. It is manual only —
+there is no push trigger, so merging a pull request ships nothing by itself.
+
+Setting it up needs three repository secrets, and is a laptop job once. Add them
+under **Settings → Secrets and variables → Actions → New repository secret**:
+
+| secret | where it comes from |
+|---|---|
+| `CLOUDFLARE_API_TOKEN` | Cloudflare → My Profile → API Tokens → Create Token → the **Edit Cloudflare Workers** template, then add **D1 → Edit** to it. Shown once; copy it straight into GitHub. |
+| `CLOUDFLARE_ACCOUNT_ID` | `npx wrangler whoami`, or the right-hand column of the Workers & Pages overview. |
+| `D1_DATABASE_ID` | `npx wrangler d1 list`. The same value that goes in `wrangler.toml`. |
+
+The database id is deliberately not committed, so the workflow pastes it into
+`wrangler.toml` at build time and fails loudly rather than deploying against the
+placeholder. After deploying it checks `/healthz` and fails if the site does not
+come back.
+
+The **Run migrate.sql first** checkbox is only ever needed once. If it stops with
+`duplicate column name: logged_by`, the board is already migrated — untick it and
+run again. Nothing is broken either way; the Worker handles both shapes.
+
+To make merges deploy automatically instead, add a `push:` trigger next to
+`workflow_dispatch:`. It was left off on purpose: it is nicer to ship when you
+mean to than to discover the board changed because a branch merged.
+
+**A phone-only alternative for the migration:** the two `ALTER TABLE` statements
+in `migrate.sql` can be pasted straight into the Cloudflare dashboard's D1
+console (Storage & Databases → D1 → the database → Console). The Worker code is
+three modules and a 140 KB assets file, so the dashboard is not a realistic way
+to ship *code* — but it is a fine way to run two lines of SQL.
 
 ## Operations
 
@@ -111,12 +161,89 @@ string, and the API takes whatever `who` it is handed. The real fix is unchanged
 **per-person PINs** — and it is the same fix the miles form has been putting off since
 the start. Decide whether a group of friends needs it before flipping `SOCIAL` on.
 
+**Link previews** — `og:` and `canonical` tags in `page.js` carry an `__ORIGIN__`
+placeholder that `pageFor()` in `index.js` fills in from the request, cached per
+hostname. Nothing is hardcoded to `septembermiles.com`, so the `workers.dev`
+fallback and any self-hosted copy preview themselves. Changing the domain needs
+no code change. The card itself is `/og.png`; re-run `make-og.py` if the brand
+or the wording changes.
+
+**Search engines** — the page carries `noindex, nofollow` and `/robots.txt` is
+`Disallow: /`. Reading the board is open to anyone with the link, and the board
+carries real names, notes and any photo posted to the chat. The link is the
+door; a search result is a second one nobody chose to open. Delete both if you
+ever want the board found.
+
+**Security headers** — every response gets `nosniff`, `X-Frame-Options: DENY`
+and `Referrer-Policy: no-referrer` (the URL is the only thing gating writes, so
+it must not ride along in a `Referer`). The page also gets a CSP. Both the style
+block and the script are inline, so it needs `'unsafe-inline'` for each —
+hashing them would mean a build step, and there deliberately is not one. What it
+still buys is no script from anywhere else, no `eval`, no plugins, no framing.
+**If you add anything the page loads from a new place, the CSP has to learn about
+it or it fails silently.** `img-src` already covers `blob:` for exactly this
+reason: the composer reads a picked photo through `URL.createObjectURL` before
+the canvas downscales it.
+
+**The Who menu opens blank** on a device with no `hms.me`, and `submit` refuses a
+blank with *Pick who you are first*. `fillWho` used to fall back to
+`selectedIndex = 0`, and its options come from `standings()`, which is sorted by
+total — so an unknown device pre-selected the current leader, and the name it
+picked for you changed as the board reordered. That is the cheapest way for one
+person's miles to land on another person's row, and it needed no bad intent at
+all. A device that already knows its own name still gets it pre-selected; the
+blank is only for "nobody has said who this is".
+
+`whoReady` (not the option count) is what tells `fillWho` whether this is the
+first fill, because the blank now ships in the static markup too — counting
+options would see two and skip the remembered-name default.
+
+**Attribution** — every entry records `logged_by` (the name the device had
+claimed before this write) and `device` (a random per-browser id in
+`hms.dev`). The feed and your history show a quiet `by Coco` tag whenever
+`logged_by` differs from `who`, so logging miles for somebody else is visible
+rather than anonymous. Both fields come from the browser and are exactly as
+trustworthy as the rest of the honor system — see the limits below. The `device`
+id is the sturdier half: it survives someone editing the name, so several
+entries typed on one phone still read as one phone.
+
+To ask the board who typed what:
+
+```sh
+npx wrangler d1 execute DB --remote --command \
+  "SELECT COALESCE(device,'(before attribution)') AS device, COUNT(*) AS n, \
+          GROUP_CONCAT(who) AS logged_for, COALESCE(logged_by,'?') AS typed_by \
+   FROM entries GROUP BY device, logged_by ORDER BY n DESC"
+```
+
+**Migrating a board that predates attribution** — `npm run db:migrate` adds the
+two columns to an existing `entries` table. Run it once; a second run stops with
+`duplicate column name: logged_by`, which is SQLite saying it is already done. A
+board created fresh from `schema.sql` already has them and needs nothing.
+
+**The order does not matter.** Every query that wants the new columns falls back
+to the shape without them (`unmigrated()` in `index.js`), so a deploy that lands
+first still serves the board and still accepts miles — it just cannot record who
+typed them until the migration runs, and it starts recording the moment it does,
+with no restart. Only a missing column is caught; any other D1 failure is still
+a real 500. This was deliberately made safe because the alternative was a
+sequenced two-step deploy where getting it backwards took the whole board down,
+and nobody should have to be careful about that from a phone.
+
 **Rotate the password** — `npx wrangler secret put PASSPHRASE`. Everyone is asked
 once more the next time they log miles. Removing the secret entirely makes writes
 open to anyone with the link.
 
 **Back up** — `curl https://septembermiles.com/api/export.csv > miles.csv`. Worth
-doing once a week during the challenge; it is the whole log in four columns.
+doing once a week during the challenge; it is the whole log in six columns —
+`date,who,miles,note,logged_by,logged_at`. `logged_at` is the wall-clock moment
+the row was written, which the board itself never shows and which is often the
+fastest way to see that several entries were typed in one sitting. A blank
+`logged_by` means the row predates attribution, so it is genuinely unknown
+rather than assumed to be `who`. A
+name or note starting with `=`, `+`, `-` or `@` is written with a leading
+apostrophe, because that file exists to be opened in a spreadsheet and those are
+the characters Excel and Sheets read as a formula rather than as text.
 
 **Restore** — D1 keeps point-in-time restore. Check `npx wrangler d1 time-travel --help`
 for the current syntax before relying on it.
@@ -142,12 +269,13 @@ readable message.
 |---|---|---|---|
 | GET | `/` | | the board |
 | GET | `/api/state` | | `{config, people, entries}` — everything the board renders from |
-| POST | `/api/entries` | `{who, date, miles, note, key}` | 401 on bad `key`, 400 on bad input |
+| POST | `/api/entries` | `{who, date, miles, note, key, by, dev}` | 401 on bad `key`, 400 on bad input |
 | POST | `/api/entries/delete` | `{id, key}` | |
 | GET | `/api/chat` | | `{messages}` — the last 200, oldest first |
 | POST | `/api/chat` | `{who, body, image, w, h, key}` | `image` is a data URL, or omitted |
 | POST | `/api/chat/delete` | `{id, key}` | also drops the message's photo |
 | GET | `/img/<id>` | | one chat photo, cached immutable for a year |
+| GET | `/robots.txt` | | `Disallow: /` |
 
 The four chat routes 404 unless `SOCIAL = "on"`.
 | GET | `/api/export.csv` | | full log, no auth |
@@ -157,14 +285,14 @@ Chat writes take the same group password as miles. Chat reads, like board reads,
 open to anyone with the link.
 
 Plus `/favicon.svg`, `/icon.svg`, `/apple-touch-icon.png`, `/icon-192.png`,
-`/icon-512.png`, `/icon-maskable.png`, `/site.webmanifest`.
+`/icon-512.png`, `/icon-maskable.png`, `/og.png`, `/site.webmanifest`.
 
 ## Data model
 
 ```sql
 people   (name TEXT PRIMARY KEY COLLATE NOCASE, color TEXT, created INTEGER)
 entries  (id TEXT PRIMARY KEY, who TEXT COLLATE NOCASE, date TEXT, miles REAL,
-          note TEXT, ts INTEGER)
+          note TEXT, ts INTEGER, logged_by TEXT, device TEXT)
 messages (id TEXT PRIMARY KEY, who TEXT COLLATE NOCASE, body TEXT, img TEXT,
           w INTEGER, h INTEGER, ts INTEGER)
 images   (id TEXT PRIMARY KEY, mime TEXT, bytes BLOB, ts INTEGER)
@@ -174,10 +302,23 @@ Rules enforced server-side in `addEntry`:
 
 - Names are matched case-insensitively and stored as first typed, so `evan` logs
   against the existing `Evan`.
-- `0 < miles <= 80`, date must fall inside `START`..`END`, name ≤ 24 chars,
-  note ≤ 60 chars.
+- `0 < miles <= 80`, rounded to the hundredth on the way in and shown to the
+  hundredth on the way out (`num()` in `page.js`, which trims trailing zeros so
+  4 stays `4` and 3.1 stays `3.1`). It displayed tenths until Sept 4, which
+  meant a 5.65 logged as 5.65 read back as 5.7, and 99.99 printed as `100` for
+  someone the finish check had not finished.
+- date must fall inside `START`..`END`, name ≤ 24 chars, note ≤ 60 chars.
+- **No future dates.** Every number on the board weighs a total against the days
+  that have actually passed, so a whole month logged on day one reads as a
+  runaway lead. The cap is today in UTC plus one day of slack, because "today"
+  is the viewer's local date and far enough east it genuinely is tomorrow. The
+  date picker stops at the viewer's own today, and is re-checked on every paint
+  so a tab left open overnight does not stay a day behind.
 - A name new to the board joins `people` and takes the next color in `COLORS`
   (`joinPerson`, shared with chat — posting a message is enough to join).
+- `logged_by` is trimmed and capped at 24 chars like a name; `device` must match
+  `/^[a-z0-9]{1,16}$/` or it is stored as null. Neither is ever invented: a row
+  written before attribution keeps both as null and is displayed unmarked.
 - Deleting someone's last entry prunes them from `people` **only if they have no
   messages either**. If they come back they may be assigned a different color.
 
@@ -193,7 +334,8 @@ And in `addMessage`:
 
 Client state that is not on the server: `localStorage` holds `hms.me` (which name is
 yours, for the "you" tag, the form default, which chat bubbles are yours, and who the
-chat composer posts as),
+chat composer posts as), `hms.dev` (this browser's random id, sent with every entry
+so the board can group entries by the device that typed them),
 `hms.key` (the password), and `hms.seen` (the newest message timestamp you have
 looked at, which drives the dot on the Social tab). All three are per-device
 conveniences; losing them costs one dropdown selection and one password entry.
@@ -220,6 +362,11 @@ you read the output.
    Answer Y; the following `deploy` fills it with real code and keeps the secret.
 6. **`Assertion failed: !(handle->flags & UV_HANDLE_CLOSING)`** on Windows is Node
    noise on exit. It printed immediately before a successful login. Ignore it.
+7. **`wrangler dev` does not always pick up an edit to `[vars]`.** It reloads on
+   source changes, but a changed `GOAL`/`START`/`END`/`SOCIAL` can sit there
+   while `/api/state` keeps serving the old config, which looks exactly like the
+   code ignoring the setting. Restart it. To test a date the calendar is not on,
+   it is quicker to stub `/api/state` in the browser than to move the window.
 
 ## Verification done
 
@@ -252,18 +399,59 @@ Re-verified the same way after the three-page rebuild, plus:
 - Wrong password, empty message, non-image data URL, and two-click remove on both a
   message and an entry (one click never deletes).
 
+Re-verified again after the audit pass, driving a local `wrangler dev` with
+Playwright:
+
+- All three tabs at 1180px, 390px and 320px, light **and** dark: no horizontal
+  scroll, exactly one tab marked current, and **no CSP violations** in the
+  console. The CSP caught a real one on the way in — `img-src` without `blob:`
+  broke the photo composer, which is why that source is spelled out above.
+- The whole challenge lifecycle against the pace maths, by stubbing `/api/state`:
+  before the start, day 1, day 29, the last day, and after the end. The header,
+  the "To finish" tile and the leaderboard's right-hand column all read
+  correctly at each, including "1 day left" and "needs 60 today" on the final
+  day, where the old build said "0 days left" and called everyone short.
+- A future date rejected by the API and unreachable from the date picker; today
+  and one day of timezone slack still accepted.
+- A note of `=1+1+cmd|'/c calc'!A0` exported as `'=1+1+...`, inert in a spreadsheet.
+- With `SOCIAL = "on"`: a text message, a photo through the composer (staged,
+  downscaled, posted, served from `/img/<id>` and reopened in the lightbox),
+  Escape closing it, a message of `<img src=x onerror=alert(1)><script>` rendering
+  as inert text, and two-click remove.
+- `/og.png` served byte-identical to `brand/og.png`; `og:`/`canonical` tags
+  rewritten to whatever `Host` the request carried.
+- `/robots.txt`, `/healthz`, 404 handling, and the `<noscript>` line rendering in
+  both themes with scripting off.
+
 Worth re-running by hand after any change to `page.js` or `index.js`.
 
 ## Known limits
 
-- **Honor-system identity.** Anyone can log as anyone. See OVERVIEW for why.
+- **Honor-system identity.** Anyone can log as anyone — but no longer by
+  accident on a fresh device, since Who opens blank and will not submit empty.
+  Attribution makes the deliberate case *visible* — the feed says `by Coco` when Coco logs Julia's miles — but it does
+  not prevent it, and it is not evidence. `logged_by` and `device` are sent by
+  the browser, so anyone willing to open devtools can send whatever they like.
+  It catches the mis-tap and the casual, which is what actually happens in a
+  family group. **Per-person PINs remain the only real fix.** See OVERVIEW.
+- **Attribution starts from the day it shipped.** Entries logged before the
+  migration — including any logged by a deploy that landed ahead of it — have no
+  `logged_by` and never will; there is nothing in the old rows
+  to recover it from. The worker has never recorded an IP or a user-agent, and
+  `[observability]` is off, so nothing else retained it either.
 - **One shared password, no rate limiting.** Guesses are unlimited. Adequate for a
   private link shared with friends; not adequate if the URL goes public.
 - **No editing an entry** — delete it and add it again.
+- **Entries can be backdated freely** inside the window. Future-dating is
+  blocked, but nothing stops someone entering last Tuesday today, which is the
+  point — you log the week's runs when you get round to it.
 - **Dates are the viewer's local date.** Someone logging near midnight in another
   timezone may pick a different "today" than the board's other users. Harmless here.
 - **No backups run automatically.** The CSV export is manual, and it covers miles
   only — chat messages and photos are not in it.
+- **`noindex` and `robots.txt` are requests, not a fence.** A well-behaved
+  crawler honours them; nothing stops anyone who has the link from sharing it.
+  Reading is still open by design.
 - **Photos live in D1, not R2.** That keeps the whole app on one binding and inside
   the free tier, but D1 is not built to be a photo store. At a few hundred photos it
   is fine. If the group ever fills it up, move `images` to an R2 bucket: only
@@ -279,6 +467,14 @@ Worth re-running by hand after any change to `page.js` or `index.js`.
 
 Roughly in order of value for effort: per-person PINs if the group ever outgrows the
 honor system; editable entries; a sort toggle (finished-first, or alphabetical, to
-soften the leaderboard read); an `og:image` so the link previews properly when it gets
-texted around; reactions on chat messages; photos on activity entries too, reusing the
-`images` table the chat already has.
+soften the leaderboard read); reactions on chat messages; photos on activity entries
+too, reusing the `images` table the chat already has.
+
+Two smaller ones the audit left on the table. The **on-pace mark counts today as
+already spent** — on the morning of day 1 it wants 3.33 miles from you and the
+board says everybody is behind. That matches the label ("miles each by today")
+so it was left alone, but "by the *end* of today" is a defensible reading and
+the gentler one. And the **unseen-message dot is repainted from the 30-second
+board poll**, which now costs a second request while the chat is on and you are
+looking at another tab; if that ever matters, a cheap `HEAD`-style endpoint
+returning just the newest timestamp would do the same job.

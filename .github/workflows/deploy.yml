@@ -1,0 +1,85 @@
+# Deploy September Miles to Cloudflare, from a phone or anywhere else.
+#
+# Manual only -- there is no push trigger, so merging a pull request does not
+# ship anything. Deploying stays a decision you make on purpose.
+#
+# To run it: GitHub -> Actions -> Deploy -> "Run workflow". Pick the branch you
+# want live (any branch, not just the trunk), then Run. That is the whole thing.
+#
+# One-time setup, and the three secrets it needs, are in HANDOFF.md under
+# "Deploying without a terminal". Until those exist this workflow will fail on
+# the first Cloudflare step, which is the expected state for a fresh clone.
+
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      migrate:
+        description: 'Run migrate.sql first (only needed once, ever)'
+        type: boolean
+        default: false
+
+# One deploy at a time; a second run waits rather than racing the first.
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: worker/package-lock.json
+
+      - name: Install
+        working-directory: worker
+        run: npm ci
+
+      # The real database id is deliberately not in the repo, so paste it in
+      # here and nowhere else. Fails loudly rather than deploying at a
+      # placeholder that would point the Worker at nothing.
+      - name: Point wrangler at the database
+        working-directory: worker
+        env:
+          D1_DATABASE_ID: ${{ secrets.D1_DATABASE_ID }}
+        run: |
+          if [ -z "$D1_DATABASE_ID" ]; then
+            echo "::error::D1_DATABASE_ID secret is not set. See 'Deploying without a terminal' in HANDOFF.md."
+            exit 1
+          fi
+          sed -i "s|PASTE_YOUR_DATABASE_ID_HERE|$D1_DATABASE_ID|" wrangler.toml
+          grep -q "PASTE_YOUR_DATABASE_ID_HERE" wrangler.toml && { echo "::error::database id was not substituted"; exit 1; }
+          echo "wrangler.toml points at the real database."
+
+      # Only ever needed once. If it says "duplicate column name: logged_by",
+      # the board is already migrated -- untick the box and run again.
+      - name: Migrate the database
+        if: ${{ inputs.migrate }}
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler d1 execute DB --remote --file=migrate.sql --yes
+
+      - name: Deploy
+        working-directory: worker
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy
+
+      - name: Check it answered
+        run: |
+          for i in 1 2 3 4 5; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' https://septembermiles.com/healthz || echo 000)
+            [ "$code" = "200" ] && { echo "septembermiles.com/healthz -> 200"; exit 0; }
+            echo "attempt $i: $code, retrying"; sleep 6
+          done
+          echo "::error::/healthz never returned 200 after the deploy"
+          exit 1
